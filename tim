@@ -35,6 +35,7 @@ worked hours you have already submitted to your money supplier.
 
 usage:
   tim systray
+  tim new <project-name>
   tim [start] <project-name> [<comment>]
   tim [running]
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
@@ -51,9 +52,16 @@ usage:
 --- tim systray ---
 Launch a systray icon. Put this in your window manager's autostart.
 
+--- tim new ---
+Announce a new project name. You can use dots '.' to create subgroups of
+projects.
+  tim new foo
+  tim new yoyodyne.abc
+
 --- tim start ---
 When you start working on a given project, call 'tim start myprojectname'.
-The word 'start' can be omitted once a project name is known.
+The word 'start' can be omitted. Before you can start a project, you must tell
+Tim about with the 'tim new' command.
 
 Project names names can be grouped, simply by inserting dots in the name. Any
 number of grouping levels is allowed.
@@ -104,13 +112,22 @@ per-group and per-project basis.
 Show the timings for this week (-W is the default). Options:
   -l <name>
     Limit the listing to this project (or group).
+  Time options:
+    default: show each timing in hours and minutes
+    -d/-w/-m/-y  combine hours for each day/week/month/year
+    -D/-W/-M/-Y  start at the beginning of this day/week/month/year
+    -f  start one full time period ago, flowing, floating past boundaries.
+        For example, '-f -W' starts seven days ago, instead of last monday;
+        '-f -M' starts the same day last month, instead of this month's 1st.
+    -n <nr>
+       Repeat above time period for <nr> times into the past.
   -s <date>
     Start at <date>, of format 'YYYY-MM-DD_hh:mm', where everything left and
     right of 'hh' may be omitted.
       -s 2013-01-11
         Start at 00:00 on 11th of January, 2013.
-      -s 2013-01-11_23:59
-        Start at 23:59 on 11th of January, 2013.
+      -s 2013-01-11_23:45
+        Start at 23:45 on 11th of January, 2013.
       -s 10
         Same as '-s 10:00', start 10 o'clock today
       -s 1_
@@ -120,15 +137,6 @@ Show the timings for this week (-W is the default). Options:
       -s 3-32_
         Same as '-s 4-1_0:00', start on the most recent 1st of April (wrap!)
       (etc.)
-  Time options:
-    default: show each timing in hours and minutes
-    -d/-w/-m/-y  combine hours for each day/week/month/year
-    -D/-W/-M/-Y  start at the beginning of this day/week/month/year
-    -t  Don't start at the last beginning of, but one whole time period ago.
-        For example, '-t -w' starts seven days ago, instead of last monday;
-        '-t -m' starts the same day last month instead of this month's 1st.
-    -n <nr>
-       Repeat above time period for <nr> times into the past.
 
 --- tim tickoff ---
 Record hours that you have already billed your money supplier for. If you are
@@ -175,15 +183,20 @@ arguments to get a listing of IDs for forgotten projects or groups.
   This example shows a sequence of tim commands. Imagine that time passes
   between each pair of start ... stop commands.
   
-  tim start foo
+  tim new foo
+  tim foo
+  tim stop
+  tim foo
   tim stop
 
-  tim start yoyodyne.abc   # start timing for project abc in the group yoyodyne
+  tim new yoyodyne.abc     # announce project abc in group yoyodyne
+  tim yoyodyne.abc         # start timing for project abc in the group yoyodyne
   tim +1                   # fake starting-time so that I've worked 1 hour now
   tim stop "fix a bug"     # stop timing, record in the log with a message
-  tim abc                  # start yoyodyne.abc, known after above 'start'
+  tim abc                  # start yoyodyne.abc; tim finds 'abc' in 'yoyodyne'.
   tim stop
-  tim start yoyodyne.xyz   # new project xyz in the yoyodyne group
+  tim new yoyodyne.xyz.bar # announce project bar in new group yoyodyne.xyz
+  tim xyz                  # start yoyodyne.xyz (yes, "groups" can also start)
   tim abc                  # stop yoyodyne.xyz, start yoyodyne.abc, in one go
   tim stop
 
@@ -194,17 +207,448 @@ arguments to get a listing of IDs for forgotten projects or groups.
   tim totals               # show the sum of all hours for all projects
   tim tickoff 32 yoyodyne  # I have billed yoyodyne for 32 hours.
   tim totals               # Above 32 hours are now subtracted from the totals.
- 
-'''
+ '''
+
+import re, os, errno, time, shutil, sys
+from os.path import join as j
+
+class Error(Exception):
+  def __init__(self, *msgs):
+    self.msg = ''.join(msgs)
+  def __str__(self):
+    return self.__class__.__name__ + ': ' + self.msg
+
+def err(*msgs):
+  raise Error(*msgs)
+
+def warn(*msgs):
+  print '***', ''.join(msgs)
+
+def msg(*msgs):
+  print ''.join(msgs)
+
+def errmsg(*msgs):
+  sys.stderr.write('tim: ')
+  for msg in msgs:
+    sys.stderr.write(msg)
+  sys.stderr.write('\n')
+  sys.stderr.flush()
+  
+
+def mins2str(float_mins):
+  sign = 1
+  frac = 59.0
+  if float_mins < 0:
+    float_mins = -float_mins
+    sign = -1
+    frac = 1.0
+  
+  minutes = int(float_mins)
+  if float_mins - float(minutes) > (frac/60):
+    minutes += 1
+
+  h, m = divmod(minutes, 60)
+
+  if m == 0:
+    return str(sign * h)
+  elif sign < 0:
+    # just 'h *= sign' won't work if h == 0.
+    return "-%d:%02d" % (h,m)
+  else:
+    return "%d:%02d" % (h,m)
+
+def str2mins(str_hours):
+  try: 
+    if str_hours.find(':') < 0:
+      return int(round(float(str_hours) * 60.0))
+
+    h, m = str_hours.split(':')
+    sign = 1
+    if h.startswith('+'):
+      h = h[1:]
+    if h.startswith('-'):
+      h = h[1:]
+      sign = -1
+
+    if not h or len(h) < 1:
+      fh = 0
+    else:
+      fh = float(h)
+
+    if not m or len(m) < 1:
+      fm = 0
+    else:
+      fm = float(m)
+
+    return int(sign * round(fh * 60.0 + fm))
+  except Exception, e:
+    err("Time format error, not a time string: ", str_hours or "None")
+
+
+def write_file(path, contents, mkdirs=True):
+  if mkdirs:
+    dirname = os.path.dirname(path)
+    if not os.path.exists(dirname):
+      os.makedirs(dirname)
+  f = open(path, "w")
+  f.write(contents)
+  f.close()
+
+def append_to_file(path, contents):
+  f = open(path, "a")
+  f.write(contents)
+  f.close()
+
+def read_file(path):
+  try:
+    f = open(path, "r")
+    contents = f.read()
+    f.close()
+    return contents
+  except IOError:
+    return None
+
+def read_file_lines(path):
+  try:
+    f = open(path, "r")
+    contents = f.readlines()
+    f.close()
+    return contents
+  except IOError:
+    return None
+
+class Timelog:
+  INIT_STR = 'init: '
+  TICKOFF_STR = 'tickoff: '
+  NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]+'
+  TIME_RE = '[+-]{0,1}[0-9:]+'
+  DATE_RE = r'(\d{1,4})-(\d{1,2})-(\d{1,2})[_ ](\d{1,2})[-:](\d{1,2})'
+  NAME_STR_RE = '\A' + NAME_RE + '\Z'
+  LOG_INITIAL_TOTAL_RE = '^' + INIT_STR + '*([^ *])=(' + TIME_RE + ')$'
+  LOG_ENTRY_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| (.*)$)'
+  LOG_TICKOFF_RE = '^' + TICKOFF_STR + DATE_RE + ' (' + NAME_RE + ') (' + TIME_RE + ')$'
+  TOTALS_LINE_RE = '^(' + NAME_RE + ')=(' + TIME_RE + ')$'
+
+
+  def __init__(self, timelog_base_path):
+    self.timelog_base_path = timelog_base_path
+    self.totals_path = j(self.timelog_base_path, 'totals')
+    self.clear()
+
+  def clear(self):
+    self.timelog_files = {}
+    self.totals = None
+
+  class InvalidNameError(Error):
+    pass
+
+  def validate_project_name(self, name):
+    if not re.match(Timelog.NAME_STR_RE, name):
+      raise Timelog.InvalidNameError("Invalid name for a project: '", name,
+               "'\n(only letters, numbers and '_' allowed in project names,",
+               " separated by '.',\nnumbers may not appear at the start.)")
+
+  def get_totals(self):
+    if self.totals is None:
+      totals_re = re.compile(Timelog.TOTALS_LINE_RE)
+      lines = read_file_lines(self.totals_path)
+      totals = {}
+      if lines:
+        for line in lines:
+          try:
+            match = totals_re.match(line)
+            if not match:
+              warn("DROPPING invalid line in '", self.totals_path, "':\n", line, '\n')
+              continue
+            name = match.group(1)
+            self.validate_project_name(name)
+            mins = str2mins(match.group(3))
+            if name in totals:
+              warn("DROPPING duplicate name '", name, "' in '", self.totals_path, "':\n",
+                   line, '\n')
+              continue
+            totals[name] = mins
+          except Timelog.InvalidNameError as e:
+            warn("DROPPING invalid name in '", self.totals_path, "': '", name, "'")
+            pass
+        if not lines[-1].endswith('\n'):
+          append_to_file(self.totals_path, '\n')
+      self.totals = totals
+    return self.totals
+
+
+  def add_project_name(self, name, lock):
+    self.validate_project_name(name)
+    with lock:
+      self.get_totals()
+      if name in self.totals:
+        err("Project already exists: '", name, "'")
+      self.totals[name] = 0
+      lines = [('%s=%s\n'%(name,mins2str(mins)))
+               for name, mins in sorted(self.totals.iteritems())]
+      write_file(self.totals_path, ''.join(lines))
+
+  class Entry:
+    def __init__(self):
+      self.set_values()
+    def set_values(self, kind=None, started=None, name=None, minutes=None,
+                         comment=None):
+      self.kind = kind
+      self.started = started
+      self.name = name
+      self.minutes = minutes
+      self.comment = comment
+
+  class File:
+    def __init__(self, path):
+      self.path = path
+      self.entries = []
+      self.totals = {}
+      self.initial_totals = {}
+      self.read()
+
+    def read(self):
+      try:
+        lf = open(self.path, "r")
+      except:
+        if not os.path.exists(self.path):
+          return
+        raise
+
+      try:
+        # read initial totals
+        while True:
+          at = lf.tell()
+          line = lf.readline()
+          match = re.match(Timelog.LOG_INITIAL_TOTAL_RE, line)
+          if match:
+            name = match.group(1)
+            Timelog.validate_project_name(None, name)
+            mins = str2mins(match.group(2))
+            self.totals[name] = (self.totals.get(name) or 0) + mins
+          else:
+            lf.seek(at) # unread last line, continue below.
+            break
+
+        entry_re = re.compile(LOG_ENTRY_RE)
+        tickoff_re = re.compile(LOG_ADJUST_TOTAL_RE)
+
+        while True:
+          line = lf.readline()
+          if not line:
+            break
+
+          match = entry_re.match(line)
+          if not match:
+            match = tickoff_re.match(line)
+            if not match:
+              continue
+            print 'tickoff', match.groups()
+            continue
+
+          print 'entry', match.groups()
+      finally:
+        lf.close()
+
+  def read_year(self, year):
+    year = int(year)
+    if year in self.timelog_files:
+      return
+    self.timelog_files[year] = Timelog.File(self.timelog_path_for_year(year))
+
+  def timelog_path_for_year(self, year):
+    return j(self.timelog_base_path, str(int(year)))
+
+
+class PidDirLock:
+  id_count = 0
+
+  def __init__(self, lock_path, sleep_time_in_seconds=1.0, timeout=30, valid_for=10):
+    self.lock = self.__enter__
+    self.unlock = self.__exit__
+    self.lock_path = lock_path
+    self.sleep_time_in_seconds = sleep_time_in_seconds
+    self.timeout = timeout
+    self.valid_for = valid_for
+    self.acquired = None
+    self.id_file = j(self.lock_path, 'pid')
+    self.id = PidDirLock.id_count
+    PidDirLock.id_count += 1
+
+
+  class LockError(Error):
+    pass
+
+  def err(self, *msgs):
+    raise PidDirLock.LockError(*msgs)
+
+  def get_lock_creation_time(self):
+    try:
+      return os.path.getmtime(self.lock_path)
+    except OSError as e:
+      if e.errno == errno.ENOENT:
+        return None
+      raise
+        
+  def remove_stale_lock(self):
+    at = self.get_lock_creation_time()
+    if (at is not None) and (time.time() - int(at) > self.valid_for):
+      print "Removing stale lock '%s'" % self.lock_path
+      shutil.rmtree( self.lock_path )
+
+  def __enter__(self):
+    if self.acquired:
+      self.err("Already locked to '", self.lock_path, "'")
+    dirname = os.path.dirname(self.lock_path)
+    if not os.path.exists(dirname):
+      os.makedirs(dirname)
+    at = time.time()
+    while True:
+      try:
+        os.mkdir(self.lock_path)
+        break
+      except OSError as e:
+        if e.errno == errno.EEXIST:
+          if time.time() > (at + self.timeout):
+            self.err('Timeout when trying to acquire lock \'', self.lock_path, "'")
+          time.sleep(self.sleep_time_in_seconds)
+          continue
+        else:
+          raise
+    # I got the lock!
+    self.acquired = time.time()
+    write_file(self.id_file, self.get_id())
+
+  def get_id(self):
+    return ':'.join((str(os.getpid()), str(self.id)))
+
+  def verify_lock(self, strict=False):
+    if not self.acquired:
+      if strict:
+        self.err("unlock: am not locked to '", self.lock_path, "'")
+      return False
+    check = read_file(self.id_file)
+    if (not check) or (check != self.get_id()):
+      self.acquired = None
+      self.err("Lost lock '", self.lock_path, "'")
+      return False
+    return True
+
+  def __exit__(self, *ignored_args):
+    if self.verify_lock(strict=True):
+      self.acquired = None
+      shutil.rmtree(self.lock_path)
+
+
+  def __del__(self):
+    self.__exit__()
+
+    
+
+
+class Tim:
+  def __init__(self):
+    self.config_dir = j(os.environ['HOME'], '.tim')
+    self.timelog = Timelog( j(self.config_dir, 'timelog') )
+    self.lock = PidDirLock( j(self.config_dir, 'locked') )
+
+  def find_full_name(self, name):
+    totals = self.timelog.get_totals()
+    if name in totals:
+      return name
+      
+    matches = set()
+    for known_name in totals:
+      tokens = known_name.split('.')
+      while tokens:
+        if name == tokens[-1]:
+          matches.add('.'.join(tokens))
+        del tokens[-1]
+    if len(matches) > 1:
+      err("multiple matches found for '", name, "':\n",
+          '\n'.join(sorted(matches)))
+    elif len(matches) == 1:
+      return matches.pop()
+    else:
+      return None
+
+
+  def new(self, name):
+    self.timelog.add_project_name(name, self.lock)
+    msg("Added '", name, "'")
+
+  def start(self, name):
+    print "starting", name
+
+  def stop(self, comment):
+    name = 'running_project'
+    return name
+
+
+class TimCmdline:
+  def __init__(self, args):
+    self.tim = Tim()
+    self.args = args
+
+    if any([(arg in args)
+            for arg in ('-h', '--help', '-?', '-help', 'help')]):
+      self.usage()
+
+    cmd = args[0]
+
+    function = None
+    if (cmd != '__init__') and hasattr(self, cmd):
+      function = getattr(self, cmd)
+    if not callable(function):
+      # convenience: omit 'start' for known project names
+      if len(args) == 1:
+        return self.start(*args)
+      err("unknown command: '", cmd, "'\ntry: 'tim help'")
+
+    return function(*(args[1:]))
+
+  def usage(self, error_message=None):
+    msg(__doc__)
+    if (error_message):
+      errmsg(error_message)
+      exit(1)
+    exit(0)
+
+  def new(self, *args):
+    if len(args) > 1:
+      err("'new' takes only one argument: an unknown project name.")
+    self.tim.new(args[0])
+
+  def start(self, *args):
+    if len(args) > 1:
+      err("'start' takes only one argument: a project name.")
+    name = self.tim.find_full_name(args[0])
+    if not name:
+      err("unknown project name: '", args[0], "' -- ",
+          "try 'tim new ", args[0], "' first?")
+    self.tim.start(name)
+
+  def stop(self, *args):
+    comment = ' '.join(args)
+    name = self.tim.stop(comment)
+    if not name:
+      err('no timer is running.')
+    if comment:
+      msg("Stopped '", name, "' with comment.")
+    else:
+      msg("Stopped '", name, "'")
+
+
+
 
 if __name__ == "__main__":
   # run commandline client.
 
-  def usage(errmsg=None):
-    print __doc__
-    if (errmsg):
-      print 'tim:', errmsg
-      exit(1)
-    exit(0)
 
-  usage()
+  try:
+    TimCmdline(sys.argv[1:])
+  except Error, e:
+    errmsg(str(e))
+    print
+    raise #exit(-1)
+
