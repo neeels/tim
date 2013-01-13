@@ -289,7 +289,7 @@ def str2mins(str_hours):
   except Exception, e:
     err("Time format error, not a time string: ", str_hours or "None")
 
-TIMESTR_FORMAT = "%Y-%m-%d_%H-%M"
+TIMESTR_FORMAT = "%Y-%m-%d %H:%M"
 
 def time2str(float_time):
   if not float_time:
@@ -621,22 +621,22 @@ class TimedDirLock:
 
 
 class Tim:
-  def __init__(self):
-    self.config_dir = j(os.environ['HOME'], '.tim')
-    self.state_file = j(self.config_dir, 'state')
-    self.daemon_pid_file = j(self.config_dir, 'daemon_pid')
+  config_dir = j(os.environ['HOME'], '.tim')
+  state_file = j(config_dir, 'state')
+  timelog_dir = j(config_dir, 'daemon_pid')
 
-    self.timelog = Timelog( j(self.config_dir, 'timelog') )
-    self.lock = TimedDirLock( j(self.config_dir, 'lock') )
+  def __init__(self):
+    self.timelog = Timelog( j(Tim.config_dir, 'timelog') )
+    self.lock = TimedDirLock( j(Tim.config_dir, 'lock') )
     pid = self.lock.remove_stale_lock()
 
   class State:
     STOPPED = 'stopped'
     SEP = '#'
 
-    def __init__(self, state_file, read=True):
-      self.state_file = state_file
-      if state_file and read:
+    def __init__(self, read=True, state_file=None):
+      self.state_file = state_file or Tim.state_file
+      if self.state_file and read:
         self.read()
       else:
         self.clear()
@@ -724,7 +724,7 @@ class Tim:
   def stop(self, comment=None):
     name = 'running_project'
     with self.lock:
-      state = Tim.State(self.state_file)
+      state = Tim.State()
       if state.started:
         if comment:
           state.comment = ' '.join((state.comment or '', comment))
@@ -742,7 +742,7 @@ class Tim:
     state = None
 
     with self.lock:
-      state = Tim.State(self.state_file)
+      state = Tim.State()
 
     if state.started:
       if state.name == name_to_start:
@@ -755,7 +755,6 @@ class Tim:
     msg('Starting ', name_to_start)
 
     daemon_out = open('daemon.log', 'a+')
-    daemon_lockfile = lockfile.FileLock(self.daemon_pid_file)
     with daemon.DaemonContext(
              stdout=daemon_out, stderr=daemon_out,
            ):
@@ -877,6 +876,29 @@ class TimCmdline:
     else:
       msg("Stopped '", name, "'")
 
+  def cmd_status(self, *args):
+    if args:
+      err("'status' takes no arguments")
+    state = Tim.State()
+    if state.started:
+      msg('Running: ', state.name, '=', mins2str(state.mins), ' (since ',
+          time2str(state.started), ')')
+    else:
+      msg('Not running.')
+
+  def cmd_totals(self, *args):
+    selected = None
+    if args:
+      selected = [self.tim.find_full_name(arg) for arg in args]
+    totals = self.tim.timelog.get_totals()
+    if totals:
+      msg('Totals:')
+      namelen = max([len(k) for k in totals.keys()])
+      for name, val in sorted(totals.iteritems()):
+        if (not selected) or (name in selected):
+          msg('  ', name, ' ' * (namelen + 1 - len(name)), mins2str(val))
+    else:
+      msg('Nothing is recorded.')
 
 if __name__ == "__main__":
   # run commandline client.
