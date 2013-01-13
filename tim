@@ -209,12 +209,17 @@ arguments to get a listing of IDs for forgotten projects or groups.
   tim totals               # Above 32 hours are now subtracted from the totals.
  '''
 
-import re, os, errno, time, shutil, sys
+import re, os, errno, time, shutil, sys, signal
+import daemon
+import lockfile
 from os.path import join as j
+
+def msgs2str(msgs):
+  return ''.join([str(m) for m in msgs])
 
 class Error(Exception):
   def __init__(self, *msgs):
-    self.msg = ''.join(msgs)
+    self.msg = msgs2str(msgs)
   def __str__(self):
     return self.__class__.__name__ + ': ' + self.msg
 
@@ -222,10 +227,10 @@ def err(*msgs):
   raise Error(*msgs)
 
 def warn(*msgs):
-  print '***', ''.join(msgs)
+  print '***', msgs2str(msgs)
 
 def msg(*msgs):
-  print ''.join(msgs)
+  print msgs2str(msgs)
 
 def errmsg(*msgs):
   sys.stderr.write('tim: ')
@@ -284,6 +289,18 @@ def str2mins(str_hours):
   except Exception, e:
     err("Time format error, not a time string: ", str_hours or "None")
 
+TIMESTR_FORMAT = "%Y-%m-%d_%H-%M"
+
+def time2str(float_time):
+  if not float_time:
+    return None
+  return time.strftime(TIMESTR_FORMAT, time.localtime(float_time))
+
+def str2time(str):
+  if not str or len(str) < 1:
+    return None
+  return time.mktime( time.strptime(str, TIMESTR_FORMAT) )
+
 
 def write_file(path, contents, mkdirs=True):
   if mkdirs:
@@ -317,10 +334,19 @@ def read_file_lines(path):
   except IOError:
     return None
 
+def process_is_running(pid):
+  try:
+    os.kill(int(pid), 0)
+    return True
+  except OSError as e:
+    if e.errno == errno.ESRCH: # no such process
+      return False
+    raise
+
 class Timelog:
   INIT_STR = 'init: '
   TICKOFF_STR = 'tickoff: '
-  NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]+'
+  NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*'
   TIME_RE = '[+-]{0,1}[0-9:]+'
   DATE_RE = r'(\d{1,4})-(\d{1,2})-(\d{1,2})[_ ](\d{1,2})[-:](\d{1,2})'
   NAME_STR_RE = '\A' + NAME_RE + '\Z'
@@ -460,7 +486,7 @@ class Timelog:
     return j(self.timelog_base_path, str(int(year)))
 
 
-class PidDirLock:
+class TimedDirLock:
   id_count = 0
 
   def __init__(self, lock_path, sleep_time_in_seconds=1.0, timeout=30, valid_for=10):
@@ -472,15 +498,15 @@ class PidDirLock:
     self.valid_for = valid_for
     self.acquired = None
     self.id_file = j(self.lock_path, 'pid')
-    self.id = PidDirLock.id_count
-    PidDirLock.id_count += 1
+    self.id = TimedDirLock.id_count
+    TimedDirLock.id_count += 1
 
 
   class LockError(Error):
     pass
 
   def err(self, *msgs):
-    raise PidDirLock.LockError(*msgs)
+    raise TimedDirLock.LockError(*msgs)
 
   def get_lock_creation_time(self):
     try:
@@ -489,18 +515,54 @@ class PidDirLock:
       if e.errno == errno.ENOENT:
         return None
       raise
-        
-  def remove_stale_lock(self):
+
+  def remove_stale_lock(self, kill_process=True):
     at = self.get_lock_creation_time()
+    pid = None
     if (at is not None) and (time.time() - int(at) > self.valid_for):
-      print "Removing stale lock '%s'" % self.lock_path
-      shutil.rmtree( self.lock_path )
+      msg("Removing stale lock '%s'" % self.lock_path)
+      pid = self.locked_by_pid()
+      while True:
+        if not (pid and process_is_running(pid)):
+          break;
+        msg('kill -SIGINT ', pid)
+        os.kill(pid, signal.SIGINT)
+        time.sleep(0.1)
+        if not process_is_running(pid):
+          break;
+        time.sleep(2)
+        if not process_is_running(pid):
+          break;
+        msg('kill -SIGTERM ', pid)
+        os.kill(pid, signal.SIGTERM)
+        time.sleep(0.1)
+        if not process_is_running(pid):
+          break;
+        time.sleep(2)
+        if not process_is_running(pid):
+          break;
+        msg('kill -SIGKILL ', pid)
+        os.kill(pid, signal.SIGKILL)
+        time.sleep(0.1)
+        if not process_is_running(pid):
+          break;
+        time.sleep(2)
+        if not process_is_running(pid):
+          break;
+        err('Unable to kill locking process (', pid, ')')
+      # process is gone. Remove the lock files.
+      try:
+        shutil.rmtree( self.lock_path )
+      except OSError as e:
+        if e.errno != errno.ENOENT:
+          raise
+    return pid
 
   def __enter__(self):
     if self.acquired:
       self.err("Already locked to '", self.lock_path, "'")
     dirname = os.path.dirname(self.lock_path)
-    if not os.path.exists(dirname):
+    if not os.path.isdir(dirname):
       os.makedirs(dirname)
     at = time.time()
     while True:
@@ -509,29 +571,41 @@ class PidDirLock:
         break
       except OSError as e:
         if e.errno == errno.EEXIST:
-          if time.time() > (at + self.timeout):
-            self.err('Timeout when trying to acquire lock \'', self.lock_path, "'")
+          if ((not self.remove_stale_lock())
+              and (time.time() > (at + self.timeout))):
+            self.err('Timeout when trying to acquire lock \'', self.lock_path, "' from process ", self.locked_by_pid())
           time.sleep(self.sleep_time_in_seconds)
           continue
         else:
           raise
     # I got the lock!
     self.acquired = time.time()
-    write_file(self.id_file, self.get_id())
+    write_file(self.id_file, self.own_id())
 
-  def get_id(self):
+  def own_id(self):
     return ':'.join((str(os.getpid()), str(self.id)))
 
-  def verify_lock(self, strict=False):
+  def locked_by_id(self):
+    return read_file(self.id_file)
+
+  def locked_by_pid(self):
+    x = self.locked_by_id()
+    if ':' in x:
+      return int(x.split(':')[0])
+    return int(x)
+
+  def verify_lock(self, strict=False, refresh=True):
     if not self.acquired:
       if strict:
-        self.err("unlock: am not locked to '", self.lock_path, "'")
+        self.err("Unlock: am not locked to '", self.lock_path, "'")
       return False
-    check = read_file(self.id_file)
-    if (not check) or (check != self.get_id()):
+    check = self.locked_by_id()
+    if (not check) or (check != self.own_id()):
       self.acquired = None
-      self.err("Lost lock '", self.lock_path, "'")
+      warn("lost lock '", self.lock_path, "'")
       return False
+    if refresh:
+      os.utime(self.lock_path, None)
     return True
 
   def __exit__(self, *ignored_args):
@@ -539,18 +613,89 @@ class PidDirLock:
       self.acquired = None
       shutil.rmtree(self.lock_path)
 
-
   def __del__(self):
     self.__exit__()
 
     
+  
 
 
 class Tim:
   def __init__(self):
     self.config_dir = j(os.environ['HOME'], '.tim')
+    self.state_file = j(self.config_dir, 'state')
+    self.daemon_pid_file = j(self.config_dir, 'daemon_pid')
+
     self.timelog = Timelog( j(self.config_dir, 'timelog') )
-    self.lock = PidDirLock( j(self.config_dir, 'locked') )
+    self.lock = TimedDirLock( j(self.config_dir, 'lock') )
+    pid = self.lock.remove_stale_lock()
+
+  class State:
+    STOPPED = 'stopped'
+    SEP = '#'
+
+    def __init__(self, state_file, read=True):
+      self.state_file = state_file
+      if state_file and read:
+        self.read()
+      else:
+        self.clear()
+
+    def clear(self):
+      self.started = None
+      self.name = None
+      self.mins = None
+      self.comment = None
+      self.pid = None
+
+    def started_str(self):
+      return time2str(self.started)
+
+    def __str__(self):
+      if self.started:
+        return Tim.State.SEP.join([self.started_str() or '',
+                                   self.name or '',
+                                   mins2str(self.mins or 0),
+                                   str(self.pid),
+                                   self.comment or ''])
+      else:
+        return Tim.State.STOPPED
+
+    def read(self):
+      self.clear()
+
+      if not os.path.isfile(self.state_file):
+        return False
+
+      statestr = read_file(self.state_file)
+      if statestr is None:
+        return False
+      statestr = statestr.strip()
+
+      if statestr == Tim.State.STOPPED:
+        # no data.
+        return True
+
+      tokens = statestr.split(Tim.State.SEP)
+      if len(tokens) < 4:
+        # no complete state
+        return False
+
+      self.started = str2time(tokens[0]) # date string to unix time
+      self.name = tokens[1]              # string
+      self.mins = str2mins(tokens[2])    # HH:MM string to float in mins
+      self.pid = int(tokens[3])
+
+      if len(tokens) > 4:
+        self.comment = Tim.State.SEP.join(tokens[4:])
+
+      return True
+
+    def save(self):
+      "write this state to file"
+      write_file(self.state_file, str(self) + '\n')
+      return self
+
 
   def find_full_name(self, name):
     totals = self.timelog.get_totals()
@@ -565,25 +710,117 @@ class Tim:
           matches.add('.'.join(tokens))
         del tokens[-1]
     if len(matches) > 1:
-      err("multiple matches found for '", name, "':\n",
+      err("Multiple matches found for '", name, "':\n",
           '\n'.join(sorted(matches)))
     elif len(matches) == 1:
       return matches.pop()
     else:
       return None
 
-
   def new(self, name):
     self.timelog.add_project_name(name, self.lock)
     msg("Added '", name, "'")
 
-  def start(self, name):
-    print "starting", name
-
-  def stop(self, comment):
+  def stop(self, comment=None):
     name = 'running_project'
-    return name
+    with self.lock:
+      state = Tim.State(self.state_file)
+      if state.started:
+        if comment:
+          state.comment = ' '.join((state.comment or '', comment))
+        msg('Stopped ', state.name, ' (', mins2str(state.mins), ')')
+        # TODO record in timelog
+        state.clear()
+        state.save()
+      return name
 
+  def start(self, name_to_start):
+    #if not os.path.isdir(self.config_dir):
+    #  os.path.makedirs(self.config_dir)
+
+    original_starting_time = str2time(time2str(time.time()))
+    state = None
+
+    with self.lock:
+      state = Tim.State(self.state_file)
+
+    if state.started:
+      if state.name == name_to_start:
+        warn('Already running: ', name_to_start)
+        return True
+      self.stop()
+    state.name = name_to_start
+    state.started = original_starting_time
+    state.mins = 0
+    msg('Starting ', name_to_start)
+
+    daemon_out = open('daemon.log', 'a+')
+    daemon_lockfile = lockfile.FileLock(self.daemon_pid_file)
+    with daemon.DaemonContext(
+             stdout=daemon_out, stderr=daemon_out,
+           ):
+      try:
+        my_pid = os.getpid()
+        state.pid = my_pid
+        with self.lock:
+          state.save()
+
+        PERIOD = 6
+
+        do_a_restart = None
+
+        while True:
+          # try to run just after the break of the minute
+          now = int(time.time())
+          time.sleep(PERIOD + 1 - (now % PERIOD))
+
+          with self.lock:
+            # verify that the state still shows the same starting time that
+            # I was called to act on.
+            state.read()
+            if not (state.pid == my_pid
+                    and state.started == original_starting_time
+                    and state.name == name_to_start):
+              # the current state no longer concerns me.
+              return
+
+            # see if the daemon was interrupted (e.g. box suspended).
+            # If so, don't count the time that the daemon was suspended, or
+            # stop everything, depending on how much time has passed.
+
+            # calculation is in seconds.
+            previous_now = state.started + (state.mins * PERIOD)
+            now = time.time()
+            msg('pn started ', state.started, ' mins', state.mins, PERIOD)
+            msg('now', now)
+
+            timestep = now - previous_now
+            msg('timestep ', timestep)
+            smallstep = 50 * PERIOD
+            largestep = 100 * PERIOD
+            if timestep > smallstep:
+              if timestep < largestep:
+                # hm, there has been a shortish break in the daemon's execution.
+                # Let's record the previous bit and start a new one.
+                do_a_restart = state.name
+                # There will be another daemon, exit.
+                break
+              else:
+                # wow, I was out for very long.
+                # assume the user forgot about me, and exit.
+                self.stop()
+                return
+
+            # all is well, update the state
+            state.mins = (now - state.started) / PERIOD
+            state.save()
+        # end of while loop
+
+        if do_a_restart:
+          self.stop()
+          self.start(do_a_restart)
+      finally:
+        msg('daemon done')
 
 class TimCmdline:
   def __init__(self, args):
@@ -594,16 +831,21 @@ class TimCmdline:
             for arg in ('-h', '--help', '-?', '-help', 'help')]):
       self.usage()
 
-    cmd = args[0]
+    if not args:
+      # when called without arguments show status
+      function = self.cmd_status
+    else:
+      cmd = args[0]
+      func_name = 'cmd_' + cmd
 
-    function = None
-    if (cmd != '__init__') and hasattr(self, cmd):
-      function = getattr(self, cmd)
-    if not callable(function):
-      # convenience: omit 'start' for known project names
-      if len(args) == 1:
-        return self.start(*args)
-      err("unknown command: '", cmd, "'\ntry: 'tim help'")
+      function = None
+      if hasattr(self, func_name):
+        function = getattr(self, func_name)
+      if not callable(function):
+        # convenience: omit 'start' for known project names
+        if len(args) == 1:
+          return self.cmd_start(*args)
+        err("Unknown command: '", cmd, "'\ntry: 'tim help'")
 
     return function(*(args[1:]))
 
@@ -614,36 +856,33 @@ class TimCmdline:
       exit(1)
     exit(0)
 
-  def new(self, *args):
+  def cmd_new(self, *args):
     if len(args) > 1:
       err("'new' takes only one argument: an unknown project name.")
     self.tim.new(args[0])
 
-  def start(self, *args):
+  def cmd_start(self, *args):
     if len(args) > 1:
       err("'start' takes only one argument: a project name.")
     name = self.tim.find_full_name(args[0])
     if not name:
-      err("unknown project name: '", args[0], "' -- ",
+      err("Unknown project name: '", args[0], "' -- ",
           "try 'tim new ", args[0], "' first?")
     self.tim.start(name)
 
-  def stop(self, *args):
+  def cmd_stop(self, *args):
     comment = ' '.join(args)
     name = self.tim.stop(comment)
     if not name:
-      err('no timer is running.')
+      err('No timer is running.')
     if comment:
       msg("Stopped '", name, "' with comment.")
     else:
       msg("Stopped '", name, "'")
 
 
-
-
 if __name__ == "__main__":
   # run commandline client.
-
 
   try:
     TimCmdline(sys.argv[1:])
