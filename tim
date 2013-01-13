@@ -765,7 +765,7 @@ class Tim:
         with self.lock:
           state.save()
 
-        PERIOD = 6
+        PERIOD = 60
 
         do_a_restart = None
 
@@ -791,12 +791,9 @@ class Tim:
             # calculation is in seconds.
             previous_now = state.started + (state.mins * PERIOD)
             now = time.time()
-            msg('pn started ', state.started, ' mins', state.mins, PERIOD)
-            msg('now', now)
 
             timestep = now - previous_now
-            msg('timestep ', timestep)
-            smallstep = 50 * PERIOD
+            smallstep = 5 * PERIOD
             largestep = 100 * PERIOD
             if timestep > smallstep:
               if timestep < largestep:
