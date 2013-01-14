@@ -239,7 +239,6 @@ def errmsg(*msgs):
   sys.stderr.write('\n')
   sys.stderr.flush()
   
-
 def mins2str(float_mins):
   sign = 1
   frac = 59.0
@@ -301,6 +300,9 @@ def str2time(str):
     return None
   return time.mktime( time.strptime(str, TIMESTR_FORMAT) )
 
+def time2year(float_time):
+  return int(time.strftime('%Y', time.localtime(float_time)))
+
 
 def write_file(path, contents, mkdirs=True):
   if mkdirs:
@@ -311,9 +313,10 @@ def write_file(path, contents, mkdirs=True):
   f.write(contents)
   f.close()
 
-def append_to_file(path, contents):
+def append_to_file(path, *contents):
   f = open(path, "a")
-  f.write(contents)
+  for c in contents:
+    f.write(c)
   f.close()
 
 def read_file(path):
@@ -343,6 +346,35 @@ def process_is_running(pid):
       return False
     raise
 
+def gently_kill_process(pid):
+  if not (pid and process_is_running(pid)):
+    return True
+  msg('kill -SIGINT ', pid)
+  os.kill(pid, signal.SIGINT)
+  time.sleep(0.1)
+  if not process_is_running(pid):
+    return True
+  time.sleep(2)
+  if not process_is_running(pid):
+    return True
+  msg('kill -SIGTERM ', pid)
+  os.kill(pid, signal.SIGTERM)
+  time.sleep(0.1)
+  if not process_is_running(pid):
+    return True
+  time.sleep(2)
+  if not process_is_running(pid):
+    return True
+  msg('kill -SIGKILL ', pid)
+  os.kill(pid, signal.SIGKILL)
+  time.sleep(0.1)
+  if not process_is_running(pid):
+    return True
+  time.sleep(2)
+  if not process_is_running(pid):
+    return True
+  return False
+ 
 class Timelog:
   INIT_STR = 'init: '
   TICKOFF_STR = 'tickoff: '
@@ -354,7 +386,6 @@ class Timelog:
   LOG_ENTRY_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| (.*)$)'
   LOG_TICKOFF_RE = '^' + TICKOFF_STR + DATE_RE + ' (' + NAME_RE + ') (' + TIME_RE + ')$'
   TOTALS_LINE_RE = '^(' + NAME_RE + ')=(' + TIME_RE + ')$'
-
 
   def __init__(self, timelog_base_path):
     self.timelog_base_path = timelog_base_path
@@ -413,6 +444,13 @@ class Timelog:
       lines = [('%s=%s\n'%(name,mins2str(mins)))
                for name, mins in sorted(self.totals.iteritems())]
       write_file(self.totals_path, ''.join(lines))
+
+  def add_timing(self, state):
+    elts = [time2str(state.started), state.name, mins2str(state.mins)]
+    if state.comment.strip():
+      elts.append(state.comment)
+    append_to_file(self.path_for_year(time2year(state.started)),
+                   ' '.join(elts), '\n')
 
   class Entry:
     def __init__(self):
@@ -476,14 +514,18 @@ class Timelog:
       finally:
         lf.close()
 
-  def read_year(self, year):
-    year = int(year)
-    if year in self.timelog_files:
-      return
-    self.timelog_files[year] = Timelog.File(self.timelog_path_for_year(year))
-
-  def timelog_path_for_year(self, year):
+  def path_for_year(self, year):
     return j(self.timelog_base_path, str(int(year)))
+
+  def year(self, year):
+    data = self.timelog_files.get(year)
+    if not data:
+      data = Timelog.File(self.timelog_path_for_year(year))
+      self.timelog_files[year] = data
+    return data
+    
+
+
 
 
 class TimedDirLock:
@@ -500,6 +542,7 @@ class TimedDirLock:
     self.id_file = j(self.lock_path, 'pid')
     self.id = TimedDirLock.id_count
     TimedDirLock.id_count += 1
+    self.lock_count = 0
 
 
   class LockError(Error):
@@ -521,35 +564,9 @@ class TimedDirLock:
     pid = None
     if (at is not None) and (time.time() - int(at) > self.valid_for):
       msg("Removing stale lock '%s'" % self.lock_path)
-      pid = self.locked_by_pid()
-      while True:
-        if not (pid and process_is_running(pid)):
-          break;
-        msg('kill -SIGINT ', pid)
-        os.kill(pid, signal.SIGINT)
-        time.sleep(0.1)
-        if not process_is_running(pid):
-          break;
-        time.sleep(2)
-        if not process_is_running(pid):
-          break;
-        msg('kill -SIGTERM ', pid)
-        os.kill(pid, signal.SIGTERM)
-        time.sleep(0.1)
-        if not process_is_running(pid):
-          break;
-        time.sleep(2)
-        if not process_is_running(pid):
-          break;
-        msg('kill -SIGKILL ', pid)
-        os.kill(pid, signal.SIGKILL)
-        time.sleep(0.1)
-        if not process_is_running(pid):
-          break;
-        time.sleep(2)
-        if not process_is_running(pid):
-          break;
+      if not gently_kill_process(self.locked_by_pid()):
         err('Unable to kill locking process (', pid, ')')
+
       # process is gone. Remove the lock files.
       try:
         shutil.rmtree( self.lock_path )
@@ -560,7 +577,9 @@ class TimedDirLock:
 
   def __enter__(self):
     if self.acquired:
-      self.err("Already locked to '", self.lock_path, "'")
+      self.lock_count += 1
+      return
+      #self.err("Already locked to '", self.lock_path, "'")
     dirname = os.path.dirname(self.lock_path)
     if not os.path.isdir(dirname):
       os.makedirs(dirname)
@@ -580,6 +599,7 @@ class TimedDirLock:
           raise
     # I got the lock!
     self.acquired = time.time()
+    self.lock_count = 1
     write_file(self.id_file, self.own_id())
 
   def own_id(self):
@@ -602,6 +622,7 @@ class TimedDirLock:
     check = self.locked_by_id()
     if (not check) or (check != self.own_id()):
       self.acquired = None
+      self.lock_count = 0
       warn("lost lock '", self.lock_path, "'")
       return False
     if refresh:
@@ -610,7 +631,11 @@ class TimedDirLock:
 
   def __exit__(self, *ignored_args):
     if self.verify_lock(strict=True):
+      if self.lock_count > 1:
+        self.lock_count -= 1
+        return
       self.acquired = None
+      self.lock_count = 0
       shutil.rmtree(self.lock_path)
 
   def __del__(self):
@@ -624,6 +649,9 @@ class Tim:
   config_dir = j(os.environ['HOME'], '.tim')
   state_file = j(config_dir, 'state')
   timelog_dir = j(config_dir, 'daemon_pid')
+  seconds_per_minute = 60.0
+  stale_threshold = 5 * seconds_per_minute
+  very_stale_threshold = 100 * seconds_per_minute
 
   def __init__(self):
     self.timelog = Timelog( j(Tim.config_dir, 'timelog') )
@@ -647,6 +675,25 @@ class Tim:
       self.mins = None
       self.comment = None
       self.pid = None
+
+    def is_stale(self):
+      assert(self.started)
+
+      expected_now = self.started + (self.mins * Tim.seconds_per_minute)
+      now = time.time()
+
+      timestep = now - expected_now
+      if timestep > Tim.stale_threshold:
+        if timestep < Tim.very_stale_threshold:
+          # hm, there has been a shortish break in the daemon's execution.
+          # Let's record the previous bit and start a new one.
+          return 1  # a bit stale
+        else:
+          # wow, I was out for very long.
+          # assume the user forgot about me, and exit.
+          return 2  # very stale
+      return 0  # not stale
+
 
     def started_str(self):
       return time2str(self.started)
@@ -717,6 +764,7 @@ class Tim:
     else:
       return None
 
+
   def new(self, name):
     self.timelog.add_project_name(name, self.lock)
     msg("Added '", name, "'")
@@ -727,12 +775,53 @@ class Tim:
       state = Tim.State()
       if state.started:
         if comment:
-          state.comment = ' '.join((state.comment or '', comment))
+          if state.comment:
+            state.comment = ' '.join((state.comment, comment))
+          else:
+            state.comment = comment
+        self.timelog.add_timing(state)
         msg('Stopped ', state.name, ' (', mins2str(state.mins), ')')
-        # TODO record in timelog
         state.clear()
         state.save()
       return name
+
+  def handle_stale_state(self, state):
+    """see if the daemon was interrupted (e.g. box suspended).
+    If so, don't count the time that the daemon was suspended, or
+    stop everything, depending on how much time has passed."""
+
+    stale = state.is_stale()
+    if stale:
+      if stale == 1:
+        stale_action_msg = 'restarted timer, not counting interrupted time.'
+      elif stale == 2:
+        stale_action_msg = 'stopped timer, not counting interrupted time.'
+      warn('detected undead timer!',
+           '\n         name: ', state.name,
+           '\n      started: ', time2str(state.started),
+           '\n      ran for: ', mins2str(state.mins),
+           '\n  interrupted: ', mins2str((time.time()-state.started)/60),
+             ' hours ago',
+           '\n       action: ', stale_action_msg)
+      if not gently_kill_process(state.pid):
+        warn('Unable to kill locking process (', pid, ')')
+      if stale == 1:
+        # hm, there has been a shortish break in the daemon's execution.
+        # Let's record the previous bit and start a new one.
+        self.stop()
+        self.start(state.name)
+      elif stale == 2:
+        # wow, I was out for very long.
+        # assume the user forgot about me, and exit.
+        self.stop()
+      state.read()
+
+  def get_status(self):
+    with self.lock:
+      state = Tim.State()
+      if state.started:
+        self.handle_stale_state(state)
+      return state
 
   def start(self, name_to_start):
     #if not os.path.isdir(self.config_dir):
@@ -764,57 +853,25 @@ class Tim:
         with self.lock:
           state.save()
 
-        PERIOD = 60
-
-        do_a_restart = None
-
         while True:
           # try to run just after the break of the minute
           now = int(time.time())
-          time.sleep(PERIOD + 1 - (now % PERIOD))
+          time.sleep(Tim.seconds_per_minute + 1 - (now % Tim.seconds_per_minute))
 
           with self.lock:
             # verify that the state still shows the same starting time that
             # I was called to act on.
             state.read()
+            self.handle_stale_state(state)
             if not (state.pid == my_pid
                     and state.started == original_starting_time
                     and state.name == name_to_start):
               # the current state no longer concerns me.
               return
 
-            # see if the daemon was interrupted (e.g. box suspended).
-            # If so, don't count the time that the daemon was suspended, or
-            # stop everything, depending on how much time has passed.
-
-            # calculation is in seconds.
-            previous_now = state.started + (state.mins * PERIOD)
-            now = time.time()
-
-            timestep = now - previous_now
-            smallstep = 5 * PERIOD
-            largestep = 100 * PERIOD
-            if timestep > smallstep:
-              if timestep < largestep:
-                # hm, there has been a shortish break in the daemon's execution.
-                # Let's record the previous bit and start a new one.
-                do_a_restart = state.name
-                # There will be another daemon, exit.
-                break
-              else:
-                # wow, I was out for very long.
-                # assume the user forgot about me, and exit.
-                self.stop()
-                return
-
             # all is well, update the state
-            state.mins = (now - state.started) / PERIOD
+            state.mins = (now - state.started) / Tim.seconds_per_minute
             state.save()
-        # end of while loop
-
-        if do_a_restart:
-          self.stop()
-          self.start(do_a_restart)
       finally:
         msg('daemon done')
 
@@ -879,10 +936,10 @@ class TimCmdline:
   def cmd_status(self, *args):
     if args:
       err("'status' takes no arguments")
-    state = Tim.State()
-    if state.started:
-      msg('Running: ', state.name, '=', mins2str(state.mins), ' (since ',
-          time2str(state.started), ')')
+    status = self.tim.get_status()
+    if status.started:
+      msg('Running: ', status.name, '=', mins2str(status.mins), ' (since ',
+          time2str(status.started), ')')
     else:
       msg('Not running.')
 
