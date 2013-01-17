@@ -214,6 +214,9 @@ import daemon
 import lockfile
 from os.path import join as j
 
+
+# messaging and error handling ###############################################
+
 def msgs2str(msgs):
   return ''.join([str(m) for m in msgs])
 
@@ -239,6 +242,9 @@ def errmsg(*msgs):
   sys.stderr.write('\n')
   sys.stderr.flush()
   
+
+# generic conversion functions ###############################################
+
 def mins2str(float_mins):
   sign = 1
   frac = 59.0
@@ -303,6 +309,8 @@ def str2time(str):
 def time2year(float_time):
   return int(time.strftime('%Y', time.localtime(float_time)))
 
+
+# os file & process functions ################################################
 
 def write_file(path, contents, mkdirs=True):
   if mkdirs:
@@ -375,6 +383,9 @@ def gently_kill_process(pid):
     return True
   return False
  
+
+# classes implementing Tim ###################################################
+
 class Timelog:
   INIT_STR = 'init: '
   TICKOFF_STR = 'tickoff: '
@@ -641,9 +652,6 @@ class TimedDirLock:
   def __del__(self):
     self.__exit__()
 
-    
-  
-
 
 class Tim:
   config_dir = j(os.environ['HOME'], '.tim')
@@ -874,6 +882,9 @@ class Tim:
             state.save()
       finally:
         msg('daemon done')
+
+
+# invocation via commandline #################################################
 
 class TimCmdline:
   def __init__(self, args):
