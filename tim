@@ -227,16 +227,16 @@ class Error(Exception):
   def __str__(self):
     return self.__class__.__name__ + ': ' + self.msg
 
-def err(*msgs):
+def _raise(*msgs):
   raise Error(*msgs)
 
-def warn(*msgs):
+def _warn(*msgs):
   print '***', msgs2str(msgs)
 
-def msg(*msgs):
+def _msg(*msgs):
   print msgs2str(msgs)
 
-def errmsg(*msgs):
+def _errmsg(*msgs):
   sys.stderr.write('tim: ')
   for msg in msgs:
     sys.stderr.write(msg)
@@ -293,7 +293,7 @@ def str2mins(str_hours):
 
     return int(sign * round(fh * 60.0 + fm))
   except Exception, e:
-    err("Time format error, not a time string: ", str_hours or "None")
+    _raise("Time format error, not a time string: ", str_hours or "None")
 
 TIMESTR_FORMAT = "%Y-%m-%d %H:%M"
 
@@ -385,21 +385,203 @@ def gently_kill_process(pid):
   return False
  
 
+# strings and regexes ########################################################
+
+INIT_STR = 'init:'
+NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*'
+TIME_RE = '[+-]{0,1}[0-9:]+'
+DATE_RE = r'(\d{1,4})-(\d{1,2})-(\d{1,2})[_ ](\d{1,2})[-:](\d{1,2})'
+NAME_STR_RE = '\A' + NAME_RE + '\Z'
+LOG_INITIAL_TOTAL_RE = '^' + INIT_STR + ' *([^ *])=(' + TIME_RE + ')$'
+TIMING_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| (.*)$)'
+STATE_RE = '^([0-9]+) (.*)$' # a PID, and a log entry (parsed in second step)
+TOTALS_LINE_RE = '^(' + NAME_RE + ')=(' + TIME_RE + ')$'
+
+class Regex:
+  '''Caches compiled regular expressions. A call to
+  Regex.match('([a-z]*) ([0-9]*)', 'foo 123') returns a re.match object and
+  compiles that regex only once, no matter how often match() is called.'''
+  cache = {}
+  @staticmethod
+  def compiled(regex):
+    compiled = Regex.cache.get(regex)
+    if not compiled:
+      compiled = re.compile(regex)
+      Regex.cache[regex] = compiled
+    return compiled
+  @staticmethod
+  def match(regex, string):
+    return Regex.compiled(regex).match(string)
+    
+
 # classes implementing Tim ###################################################
 
-class Timelog:
-  INIT_STR = 'init:'
-  TICKOFF_STR = 'tickoff:'
-  NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*'
-  TIME_RE = '[+-]{0,1}[0-9:]+'
-  DATE_RE = r'(\d{1,4})-(\d{1,2})-(\d{1,2})[_ ](\d{1,2})[-:](\d{1,2})'
-  NAME_STR_RE = '\A' + NAME_RE + '\Z'
-  LOG_INITIAL_TOTAL_RE = '^' + INIT_STR + ' *([^ *])=(' + TIME_RE + ')$'
-  LOG_ENTRY_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| (.*)$)'
-  LOG_TICKOFF_RE = '^' + DATE_RE + ' ' + TICKOFF_STR + ' (' + NAME_RE + ') (' + TIME_RE + ')$'
-  TOTALS_LINE_RE = '^(' + NAME_RE + ')=(' + TIME_RE + ')$'
+class Notify(object):
+  def __init__(self, notify_func):
+    ''' notify_func(key, arg): function that notifies the user; the
+    calling code can/should show these messages to the user in some way.
 
-  def __init__(self, timelog_base_path):
+    key: One of the Notify.CONSTANTs
+    
+    arg: depends on the key...
+
+      Notify.STARTED,
+      Notify.ALREADY_RUNNING:
+        arg: the name of the project that was successfully started / stopped
+              / was not started since the same name is already running.
+
+      Notify.STOPPED,
+      Notify.STALE:
+        arg: a State instance reflecting the state that has just
+             been stopped and recorded in the time log. A stale state
+             (NOTIFY_STALE) is a running state that has not been updated for a
+             long time, maybe because the machine was suspended or crashed.
+             The timing was saved to the time log, only counting the time that
+             the state was not stale (state.timing.minutes).
+
+      Notify.MSG,
+      Notify.WARN,
+      Notify.ERROR:
+        arg: a message to display.
+    '''
+    self.notify_func = notify_func
+
+  def msg(self, *msgs):
+    self.notify_func(Notify.MSG, msgs2str(msgs))
+
+  def warn(self, *msgs):
+    self.notify_func(Notify.WARN, msgs2str(msgs))
+
+  def err(self, *msgs):
+    self.notify_func(Notify.ERROR, msgs2str(msgs))
+
+  ALREADY_RUNNING = 0
+  STARTED = 1
+  STOPPED = 2
+  STALE = 3
+  MSG = 4
+  WARN = 5
+  ERROR = 6
+
+
+
+class Timing:
+  def __init__(self, **kwargs):
+    self.set_values(**kwargs)
+  
+  def set_values(self, started=None, name=None, minutes=None, comment=None):
+    self.started = started
+    self.name = name
+    self.minutes = minutes
+    self.comment = comment
+    if not self.comment:
+      self.comment = None
+    return self
+
+  def clear(self):
+    self.set_values()
+
+  def started_str(self):
+    return time2str(self.started)
+
+  def serialize(self):
+    if self.started:
+      started_str = self.started_str()
+    else:
+      started_str = 'not_started'
+    elts = [started_str,
+            self.name or 'unnamed',
+            mins2str(self.minutes or 0)]
+    if self.comment:
+      elts.append(self.comment)
+    return ' '.join(elts) + '\n'
+
+  def deserialize(self, line):
+    match = Regex.match(TIMING_RE, line)
+    if not match:
+      return None
+    else:
+      self.set_values(
+                    started=str2time('%s-%s-%s %s:%s' % match.groups()[0:5]),
+                    name=match.group(6),
+                    minutes=str2mins(match.group(7)),
+                    comment=match.group(8),
+                   )
+      return self
+
+
+
+
+class State:
+  STOPPED = 'stopped'
+
+  def __init__(self, read=True, state_file_path=None):
+    self.timing = Timing()
+    self.pid = None
+    self.state_file_path = state_file_path or Tim.state_file_path
+    if self.state_file_path and read:
+      self.read()
+
+  def __str__(self):
+    if self.timing.started:
+      return str(self.pid) + ' ' + self.timing.serialize()
+    else:
+      return State.STOPPED
+
+  def set_values(self, pid=None, **kwargs):
+    self.pid = pid
+    return self.timing.set_values(**kwargs)
+
+  def serialize(self):
+    return str(self) + '\n'
+
+  def deserialize(self, string):
+    match = Regex.match(STATE_RE, string)
+    if not match:
+      return False
+    # State only adds the pid field to Timing, so
+    # STATE_RE only adds a pid nr to TIMING_RE
+    self.pid = int(match.group(1))
+    self.timing.deserialize(match.group(2))
+    return True
+
+  def save(self):
+    "write this state to file"
+    write_file(self.state_file_path, self.serialize())
+    return self
+
+  def clear(self):
+    self.pid = None
+    self.timing.clear()
+
+  def read(self):
+    self.clear()
+
+    if not os.path.isfile(self.state_file_path):
+      return False
+
+    statestr = read_file(self.state_file_path)
+    if statestr is None:
+      return True # stopped. no data.
+    statestr = statestr.strip()
+    if statestr == State.STOPPED:
+      return True # stopped. no data.
+
+    return self.deserialize(statestr)
+
+  def is_stale(self):
+    assert(self.timing.started)
+    expected_now = (self.timing.started 
+                    + (self.timing.minutes * Tim.seconds_per_minute))
+    timestep = now() - expected_now
+    return ((timestep > Tim.stale_threshold)
+            or not process_is_running(self.pid))
+
+
+class Timelog(Notify):
+
+  def __init__(self, notify_func, timelog_base_path):
+    Notify.__init__(self, notify_func)
     self.timelog_base_path = timelog_base_path
     self.totals_path = j(self.timelog_base_path, 'totals')
     self.clear()
@@ -412,33 +594,32 @@ class Timelog:
     pass
 
   def validate_project_name(self, name):
-    if not re.match(Timelog.NAME_STR_RE, name):
+    if not Regex.match(NAME_STR_RE, name):
       raise Timelog.InvalidNameError("Invalid name for a project: '", name,
                "'\n(only letters, numbers and '_' allowed in project names,",
                " separated by '.',\nnumbers may not appear at the start.)")
 
   def get_totals(self):
     if self.totals is None:
-      totals_re = re.compile(Timelog.TOTALS_LINE_RE)
       lines = read_file_lines(self.totals_path)
       totals = {}
       if lines:
         for line in lines:
           try:
-            match = totals_re.match(line)
+            match = Regex.match(TOTALS_LINE_RE, line)
             if not match:
-              warn("DROPPING invalid line in '", self.totals_path, "':\n", line, '\n')
+              self.warn("DROPPING invalid line in '", self.totals_path, "':\n", line, '\n')
               continue
             name = match.group(1)
             self.validate_project_name(name)
             minutes = str2mins(match.group(3))
             if name in totals:
-              warn("DROPPING duplicate name '", name, "' in '", self.totals_path, "':\n",
+              self.warn("DROPPING duplicate name '", name, "' in '", self.totals_path, "':\n",
                    line, '\n')
               continue
             totals[name] = minutes
           except Timelog.InvalidNameError as e:
-            warn("DROPPING invalid name in '", self.totals_path, "': '", name, "'")
+            self.warn("DROPPING invalid name in '", self.totals_path, "': '", name, "'")
             pass
         if not lines[-1].endswith('\n'):
           append_to_file(self.totals_path, '\n')
@@ -451,55 +632,19 @@ class Timelog:
     with lock:
       self.get_totals()
       if name in self.totals:
-        err("Already exists: '", name, "'")
+        self.err("Already exists: '", name, "'")
       self.totals[name] = 0
       lines = [('%s=%s\n'%(name,mins2str(minutes)))
                for name, minutes in sorted(self.totals.iteritems())]
       write_file(self.totals_path, ''.join(lines))
 
-  def add_timing(self, state):
-    timing = Timelog.Timing(kind=Timelog.Timing.KIND_TIMING,
-                            started=state.started,
-                            name=state.name,
-                            minutes=state.minutes,
-                            comment=state.comment)
+  def add_timing(self, timing):
     timings_file = self.year()
     timings_file.add_timing(timing)
     self.get_totals()
     name = timing.name
     self.totals[name] = (self.totals.get(name) or 0) + timing.minutes
 
-  class Timing:
-    KIND_TIMING = 0
-    KIND_TICKOFF = 1
-
-    def __init__(self, **kwargs):
-      self.set_values(**kwargs)
-    def set_values(self, kind=None, started=None, name=None, minutes=None,
-                         comment=None):
-      self.kind = kind
-      self.started = started
-      self.name = name
-      self.minutes = minutes
-      self.comment = comment
-      if not self.comment:
-        self.comment = None
-      return self
-    def verbose(self):
-      msg('started=', time2str(self.started), ' name=', self.name,
-          ' minutes=', mins2str(self.minutes), ' comment=', self.comment)
-      return self
-    def __str__(self):
-      if self.started:
-        started_str = time2str(self.started)
-      else:
-        started_str = 'not_started'
-      elts = [started_str,
-              self.name or 'unnamed',
-              mins2str(self.minutes or 0)]
-      if self.comment:
-        elts.append(self.comment)
-      return ' '.join(elts)
       
 
   class TimingsFile:
@@ -537,15 +682,12 @@ class Timelog:
             lf.seek(at) # unread last line, continue below.
             break
 
-        entry_re = re.compile(Timelog.LOG_ENTRY_RE)
-        tickoff_re = re.compile(Timelog.LOG_TICKOFF_RE)
-
         while True:
           line = lf.readline()
           if not line:
             break
 
-          match = entry_re.match(line)
+          match = Regex.match(TIMING_RE, line)
           if match:
             self.entries.append(
               Timelog.Timing(
@@ -565,10 +707,10 @@ class Timelog:
         lf.close()
 
     def add_timing(self, timing):
-      assert(isinstance(timing, Timelog.Timing))
-      if timing.minutes = 0:
+      assert(isinstance(timing, Timing))
+      if timing.minutes == 0:
         return
-      append_to_file(self.path, str(timing), '\n')
+      append_to_file(self.path, timing.serialize())
       if self.totals is None:
         self.totals = {}
       self.totals[timing.name] = ((self.totals.get(timing.name) or 0)
@@ -591,10 +733,12 @@ class Timelog:
 
 
 
-class TimedDirLock:
+class TimedDirLock(Notify):
   id_count = 0
 
-  def __init__(self, lock_path, sleep_time_in_seconds=1.0, timeout=30, valid_for=10):
+  def __init__(self, notify_func, lock_path,
+               sleep_time_in_seconds=1.0, timeout=30, valid_for=10):
+    Notify.__init__(self, notify_func)
     self.lock = self.__enter__
     self.unlock = self.__exit__
     self.lock_path = lock_path
@@ -611,9 +755,6 @@ class TimedDirLock:
   class LockError(Error):
     pass
 
-  def err(self, *msgs):
-    raise TimedDirLock.LockError(*msgs)
-
   def get_lock_creation_time(self):
     try:
       return os.path.getmtime(self.lock_path)
@@ -626,9 +767,10 @@ class TimedDirLock:
     at = self.get_lock_creation_time()
     pid = None
     if (at is not None) and (now() - int(at) > self.valid_for):
-      msg("Removing stale lock '%s'" % self.lock_path)
+      self.msg("Removing stale lock '%s'" % self.lock_path)
       if not gently_kill_process(self.locked_by_pid()):
-        err('Unable to kill locking process (', pid, ')')
+        raise TimedDirLock.LockError(msgs2str(
+                'Unable to kill locking process (', pid, ')'))
 
       # process is gone. Remove the lock files.
       try:
@@ -642,7 +784,6 @@ class TimedDirLock:
     if self.acquired:
       self.lock_count += 1
       return
-      #self.err("Already locked to '", self.lock_path, "'")
     dirname = os.path.dirname(self.lock_path)
     if not os.path.isdir(dirname):
       os.makedirs(dirname)
@@ -655,7 +796,9 @@ class TimedDirLock:
         if e.errno == errno.EEXIST:
           if ((not self.remove_stale_lock())
               and (now() > (at + self.timeout))):
-            self.err('Timeout when trying to acquire lock \'', self.lock_path, "' from process ", self.locked_by_pid())
+            raise TimedDirLock.LockError(msgs2str(
+                'Timeout when trying to acquire lock \'',
+                self.lock_path, "' from process ", self.locked_by_pid()))
           time.sleep(self.sleep_time_in_seconds)
           continue
         else:
@@ -680,13 +823,14 @@ class TimedDirLock:
   def verify_lock(self, strict=False, refresh=True):
     if not self.acquired:
       if strict:
-        self.err("Unlock: am not locked to '", self.lock_path, "'")
+        raise TimedDirLock.LockError(msgs2str(
+                "Unlock: am not locked to '", self.lock_path, "'"))
       return False
     check = self.locked_by_id()
     if (not check) or (check != self.own_id()):
       self.acquired = None
       self.lock_count = 0
-      warn("lost lock '", self.lock_path, "'")
+      self.warn("lost lock '", self.lock_path, "'")
       return False
     if refresh:
       os.utime(self.lock_path, None)
@@ -705,106 +849,19 @@ class TimedDirLock:
     self.__exit__()
 
 
-class Tim:
+class Tim(Notify):
   config_dir = j(os.environ['HOME'], '.tim')
-  state_file_path = j(config_dir, 'state')
+  state_file_path = j(config_dir, 'running')
   timelog_dir = j(config_dir, 'daemon_pid')
   seconds_per_minute = 60.0
   stale_threshold = 5 * seconds_per_minute
-  very_stale_threshold = 100 * seconds_per_minute
-  ALREADY_RUNNNG = 0
-  STARTED = 1
-  STOPPED = 2
 
-  def __init__(self):
-    self.timelog = Timelog( j(Tim.config_dir, 'timelog') )
-    self.lock = TimedDirLock( j(Tim.config_dir, 'lock') )
+  def __init__(self, notify_func):
+    Notify.__init__(self, notify_func)
+    self.notify = self.notify_func
+    self.timelog = Timelog( notify_func, j(Tim.config_dir, 'timelog') )
+    self.lock = TimedDirLock( notify_func, j(Tim.config_dir, 'lock') )
     pid = self.lock.remove_stale_lock()
-
-  class State:
-    STOPPED = 'stopped'
-    SEP = '#'
-
-    def __init__(self, read=True, state_file_path=None):
-      self.state_file_path = state_file_path or Tim.state_file_path
-      if self.state_file_path and read:
-        self.read()
-      else:
-        self.clear()
-
-    def clear(self):
-      self.started = None
-      self.name = None
-      self.minutes = None
-      self.comment = None
-      self.pid = None
-
-    def is_stale(self):
-      assert(self.started)
-
-      expected_now = self.started + (self.minutes * Tim.seconds_per_minute)
-
-      timestep = now() - expected_now
-      if timestep > Tim.stale_threshold:
-        if timestep < Tim.very_stale_threshold:
-          # hm, there has been a shortish break in the daemon's execution.
-          # Let's record the previous bit and start a new one.
-          return 1  # a bit stale
-        else:
-          # wow, I was out for very long.
-          # assume the user forgot about me, and exit.
-          return 2  # very stale
-      return 0  # not stale
-
-
-    def started_str(self):
-      return time2str(self.started)
-
-    def __str__(self):
-      if self.started:
-        return Tim.State.SEP.join([self.started_str() or '',
-                                   self.name or '',
-                                   mins2str(self.minutes or 0),
-                                   str(self.pid),
-                                   self.comment or ''])
-      else:
-        return Tim.State.STOPPED
-
-    def read(self):
-      self.clear()
-
-      if not os.path.isfile(self.state_file_path):
-        return False
-
-      statestr = read_file(self.state_file_path)
-      if statestr is None:
-        return False
-      statestr = statestr.strip()
-
-      if statestr == Tim.State.STOPPED:
-        # no data.
-        return True
-
-      tokens = statestr.split(Tim.State.SEP)
-      if len(tokens) < 4:
-        # no complete state
-        return False
-
-      self.started = str2time(tokens[0]) # date string to unix time
-      self.name = tokens[1]              # string
-      self.minutes = str2mins(tokens[2]) # HH:MM string to float in minutes
-      self.pid = int(tokens[3])
-
-      if len(tokens) > 4:
-        self.comment = Tim.State.SEP.join(tokens[4:])
-
-      return True
-
-    def save(self):
-      "write this state to file"
-      write_file(self.state_file_path, str(self) + '\n')
-      return self
-
 
   def find_full_name(self, name):
     totals = self.timelog.get_totals()
@@ -819,8 +876,8 @@ class Tim:
           matches.add('.'.join(tokens))
         del tokens[-1]
     if len(matches) > 1:
-      err("Multiple matches found for '", name, "':\n",
-          '\n'.join(sorted(matches)))
+      self.err("Multiple matches found for '", name, "':\n",
+               '\n'.join(sorted(matches)))
     elif len(matches) == 1:
       return matches.pop()
     else:
@@ -829,91 +886,63 @@ class Tim:
 
   def new(self, name):
     self.timelog.add_project_name(name, self.lock)
-    msg("Added '", name, "'")
+    self.msg("Added '", name, "'")
 
   def stop(self, comment=None):
+    stopped_state = None
     with self.lock:
-      state = Tim.State()
-      if state.started:
+      stopped_state = State()
+      t = stopped_state.timing
+      if t.started:
         if comment:
-          if state.comment:
-            state.comment = ' '.join((state.comment, comment))
+          if t.comment:
+            t.comment = ' '.join((t.comment, comment))
           else:
-            state.comment = comment
-        self.timelog.add_timing(state)
+            t.comment = comment
+        self.timelog.add_timing(t)
         # clear the state on disk
-        empty_state = Tim.State(read=False)
+        empty_state = State(read=False)
         empty_state.save()
-        # return the stopped in-memory state
-        return state
-    return None
+      else:
+        stopped_state = None # nothing was stopped
+    if stopped_state:
+      self.notify(Notify.STOPPED, stopped_state)
+    return stopped_state
 
   def handle_stale_state(self, state):
     """see if the daemon was interrupted (e.g. box suspended).
     If so, don't count the time that the daemon was suspended, or
     stop everything, depending on how much time has passed."""
-
-    stale = state.is_stale()
-    if stale:
-      if stale == 1:
-        stale_action_msg = 'Restarted timer, not counting interrupted time.'
-      elif stale == 2:
-        stale_action_msg = 'Stopped timer, not counting interrupted time.'
-      warn('detected undead timer!',
-           '\n         name: ', state.name,
-           '\n      started: ', time2str(state.started),
-           '\n      ran for: ', mins2str(state.minutes),
-           '\n  interrupted: ', mins2str((now()-state.started)/60),
-             ' hours ago',
-           '\n           --> ', stale_action_msg)
+    if state.is_stale():
+      self.notify(Notify.STALE, state)
       if not gently_kill_process(state.pid):
-        warn('Unable to kill locking process (', pid, ')')
-      if stale == 1:
-        # hm, there has been a shortish break in the daemon's execution.
-        # Let's record the previous bit and start a new one.
-        self.stop()
-        self.start(state.name)
-      elif stale == 2:
-        # wow, I was out for very long.
-        # assume the user forgot about me, and exit.
-        self.stop()
-      # if it was stale, the state was changed to fix staleness. Reload.
+        self.warn('Unable to kill timer process (', pid, ')')
+      # assume the user forgot about me, and exit.
+      self.stop()
+      # Reload.
       state.read()
 
   def get_status(self):
     with self.lock:
-      state = Tim.State()
-      if state.started:
+      state = State()
+      if state.timing.started:
         self.handle_stale_state(state)
       return state
 
-  def start(self, name_to_start, reporter_func=None):
-    '''
-    name_to_start: fully resolved project name ('root.bar.baz')
-    reporter_func(key, name): function that notifies the user; the calling code
-    can/should print these messages on screen in some way or other.
-    key: Tim.ALREADY_RUNNNG, Tim.STARTED or Tim.STOPPED
-    name: the project name that is already running / was started / was stopped.
-    A callback mechanism is used since this function becomes a daemon
-    detached from the calling code and never returns. The callbacks are issued
-    before becoming a daemon. Multiple calls may be issued to reporter_func()
-    if a timing has to be stopped before starting <name_to_start>.
-    '''
+  def start(self, name_to_start):
+    ''' name_to_start: fully resolved project name ('root.bar.baz') '''
 
     with self.lock:
-      state = Tim.State()
+      state = State()
 
-    if state.started:
-      if state.name == name_to_start:
-        if reporter_func:
-          reporter_func(Tim.ALREADY_RUNNNG, name_to_start)
+    t = state.timing
+    if t.started:
+      if t.name == name_to_start:
+        self.notify(Notify.ALREADY_RUNNING, name_to_start)
         return True
-      stopped_state = self.stop()
-      if stopped_state and reporter_func:
-        reporter_func(Tim.STOPPED, stopped_state.name)
+      self.stop()
 
-    if reporter_func:
-      reporter_func(Tim.STARTED, name_to_start)
+    self.notify(Notify.STARTED, name_to_start)
 
     daemon_out = open('daemon.log', 'a+')
     with daemon.DaemonContext(
@@ -924,12 +953,12 @@ class Tim:
 
         original_starting_time = str2time( time2str( now() ) )
 
-        state = Tim.State(read=False)
-        state.name = name_to_start
-        state.started = original_starting_time
-        state.minutes = 0
-        state.minutes += 1  # <-- debug
-        state.pid = my_pid
+        state = State(read=False)
+        state.set_values(
+          name=name_to_start,
+          started=original_starting_time,
+          minutes=1,  # <-- debug  minutes=0,
+          pid=my_pid)
         with self.lock:
           state.save()
 
@@ -942,21 +971,21 @@ class Tim:
             # verify that the state still shows the same starting time that
             # I was called to act on.
             state.read()
-            if state.started:
+            t = state.timing
+            if t.started:
               self.handle_stale_state(state)
             if not (state.pid == my_pid
-                    and state.started == original_starting_time
-                    and state.name == name_to_start):
+                    and t.started == original_starting_time
+                    and t.name == name_to_start):
               # the current state no longer concerns me.
               return
 
             # all is well, update the state
-            state.minutes = ((int(now()) - state.started) 
-                             / Tim.seconds_per_minute)
-            print state.minutes
+            t.minutes = ((int(now()) - t.started) 
+                         / Tim.seconds_per_minute)
             state.save()
       finally:
-        msg('daemon done')
+        _msg('daemon done')
 
   def get_log(self, start_date=None, end_date=None):
     year = self.timelog.year( time2year(now()) )
@@ -968,7 +997,7 @@ class Tim:
 
 class TimCmdline:
   def __init__(self, args):
-    self.tim = Tim()
+    self.tim = Tim(self.notify)
     self.args = args
 
     if any([(arg in args)
@@ -989,12 +1018,12 @@ class TimCmdline:
         # convenience: omit 'start' for known project names
         if len(args) == 1:
           return self.cmd_start(*args)
-        err("Unknown command: '", cmd, "'\ntry: 'tim help'")
+        _raise("Unknown command: '", cmd, "'\ntry: 'tim help'")
 
     return function(*(args[1:]))
 
   def usage(self, error_message=None):
-    msg(__doc__)
+    _msg(__doc__)
     if (error_message):
       errmsg(error_message)
       exit(1)
@@ -1002,48 +1031,68 @@ class TimCmdline:
 
   def cmd_new(self, *args):
     if len(args) > 1:
-      err("'new' takes only one argument: an unknown name.")
+      _raise("'new' takes only one argument: an unknown name.")
     self.tim.new(args[0])
 
-  def reporter(self, key, name):
-    if key == Tim.ALREADY_RUNNNG:
-      warn('Already running: ', name)
-    elif key == Tim.STOPPED:
-      msg('Stopped ', name)
-    elif key == Tim.STARTED:
-      msg('Started ', name)
+  def notify(self, key, arg):
+    if key == Notify.ALREADY_RUNNING:
+      name = str(arg)
+      _warn('Already running: ', name)
+    elif key == Notify.STOPPED:
+      state = arg
+      t = state.timing
+      _msg('Stopped ', t.name,
+           ' (', mins2str(t.minutes), ')')
+    elif key == Notify.STARTED:
+      name = str(arg)
+      _msg('Started ', name)
+    elif key == Notify.MSG:
+      msg = arg
+      _msg(msg)
+    elif key == Notify.WARN:
+      msg = arg
+      _warn(msg)
+    elif key == Notify.ERROR:
+      msg = arg
+      _raise(msg)
+    elif key == Notify.STALE:
+      state = arg
+      t = state.timing
+      _warn('detected undead timer!',
+            '\nStopped timer, not counting interrupted time.',
+            '\n         name: ', t.name,
+            '\n      started: ', time2str(t.started),
+            '\n      ran for: ', mins2str(t.minutes),
+            '\n  interrupted: ', mins2str((now()-t.started)/60),
+              ' hours ago',
+            )
 
   def cmd_start(self, *args):
     if len(args) > 1:
-      err("'start' takes only one argument: a name.")
+      _raise("'start' takes only one argument: a name.")
     name = self.tim.find_full_name(args[0])
     if not name:
-      err("Unknown name: '", args[0], "' -- ",
-          "try 'tim new ", args[0], "' first?")
-    self.tim.start(name, self.reporter)
+      _raise("Unknown name: '", args[0], "' -- ",
+             "try 'tim new ", args[0], "' first?")
+    self.tim.start(name)
 
   def cmd_stop(self, *args):
     comment = ' '.join(args)
     stopped_state = self.tim.stop(comment)
     # notification
     if not stopped_state:
-      err('No timer is running.')
-    if stopped_state.comment:
-      c = ' ' + stopped_state.comment
-    else:
-      c = ''
-    msg('Stopped ', stopped_state.name,
-        ' (', mins2str(stopped_state.minutes), ')', c)
+      _raise('No timer is running.')
 
   def cmd_status(self, *args):
     if args:
-      err("'status' takes no arguments")
+      _raise("'status' takes no arguments")
     status = self.tim.get_status()
-    if status.started:
-      msg('Running: ', status.name, '=', mins2str(status.minutes), ' (since ',
-          time2str(status.started), ')')
+    t = status.timing
+    if t.started:
+      _msg('Running: ', t.name, '=', mins2str(t.minutes), ' (since ',
+           time2str(t.started), ')')
     else:
-      msg('Not running.')
+      _msg('Not running.')
 
   def cmd_totals(self, *args):
     selected = None
@@ -1071,7 +1120,7 @@ class TimCmdline:
 
   def cmd_log(self, *args):
     if args:
-      err("'log' takes no arguments")
+      _raise("'log' arguments not implemented")
 
     log = self.tim.get_log()
     for entry in log.entries:
