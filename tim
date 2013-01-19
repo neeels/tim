@@ -485,6 +485,9 @@ class Timing:
     return time2str(self.started)
 
   def serialize(self):
+    return self.__str__() + '\n'
+
+  def __str__(self):
     if self.started:
       started_str = self.started_str()
     else:
@@ -494,7 +497,7 @@ class Timing:
             mins2str(self.minutes or 0)]
     if self.comment:
       elts.append(self.comment)
-    return ' '.join(elts) + '\n'
+    return ' '.join(elts)
 
   def deserialize(self, line):
     match = Regex.match(TIMING_RE, line)
@@ -508,7 +511,6 @@ class Timing:
                     comment=match.group(8),
                    )
       return self
-
 
 
 
@@ -647,8 +649,9 @@ class Timelog(Notify):
 
       
 
-  class TimingsFile:
-    def __init__(self, path):
+  class TimingsFile(Notify):
+    def __init__(self, notify_func, path):
+      Notify.__init__(self, notify_func)
       self.path = path
       self.entries = None
       self.totals = None
@@ -667,11 +670,14 @@ class Timelog(Notify):
         self.totals = {}
         self.initial_totals = {}
 
+        line_count = 0
+
         # read initial totals
         while True:
           at = lf.tell()
           line = lf.readline()
-          match = re.match(Timelog.LOG_INITIAL_TOTAL_RE, line)
+          line_count += 1
+          match = Regex.match(LOG_INITIAL_TOTAL_RE, line)
           if match:
             name = match.group(1)
             Timelog.validate_project_name(None, name)
@@ -680,29 +686,22 @@ class Timelog(Notify):
                 (self.initial_totals.get(name) or 0) + minutes )
           else:
             lf.seek(at) # unread last line, continue below.
+            line_count -= 1
             break
 
         while True:
           line = lf.readline()
+          line_count += 1
           if not line:
             break
 
-          match = Regex.match(TIMING_RE, line)
-          if match:
-            self.entries.append(
-              Timelog.Timing(
-                started=str2time('%s-%s-%s %s:%s' % match.groups()[0:5]),
-                name=match.group(6),
-                minutes=str2mins(match.group(7)),
-                comment=match.group(8),
-                )
-               )
+          t = Timing().deserialize(line)
+          if t:
+            self.entries.append(t)
             continue
 
-          match = tickoff_re.match(line)
-          if match:
-            print 'tickoff', match.groups()
-            continue
+          self.warn('cannot parse line ', line_count, ' in timelog file ', 
+                    self.path)
       finally:
         lf.close()
 
@@ -725,7 +724,8 @@ class Timelog(Notify):
     year = int(year)
     timings_file = self.timelog_files.get(year)
     if not timings_file:
-      timings_file = Timelog.TimingsFile(self.path_for_year(year))
+      timings_file = Timelog.TimingsFile(self.notify_func,
+                                         self.path_for_year(year))
       self.timelog_files[year] = timings_file
     return timings_file
     
@@ -1124,7 +1124,7 @@ class TimCmdline:
 
     log = self.tim.get_log()
     for entry in log.entries:
-      msg(str(entry))
+      _msg(str(entry))
 
 if __name__ == "__main__":
   # run commandline client.
