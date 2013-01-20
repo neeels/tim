@@ -27,13 +27,18 @@
 # You should have received a copy of the GNU General Public License
 # along with Tim project timer.  If not, see <http://www.gnu.org/licenses/>.
 
-__doc__ = '''Tim project timer.
+'''Tim project timer.
 
 You enter names and start and stop them. Tim tracks how much you worked on
 which (and when) and, if you like, how many of these worked hours you have
 already submitted to your money supplier.
 
-usage:
+Make backups of your ~/.tim folder. It contains all of your time logs.
+
+launch a systray icon and GUI:
+  tim systray
+
+command line usage:
   tim systray
   tim new <project-name>
   tim [start] <project-name> [<comment>]
@@ -45,12 +50,15 @@ usage:
   tim tickoff <hours> [<project-name>] 
   tim tickoff --undo
   tim rename <current-project-name> <new-project-name>
+  tim fix [<year> [<year>...]]
   tim forget <project-name>
   tim remember [<id>] [--as <project-name>] [--add-to <project-name>]
 
 
 --- tim systray ---
-Launch a systray icon. Put this in your window manager's autostart.
+Launch a systray icon. Tim should appear in your window manager's taskbar. Put
+'tim systray' in your window manager's autostart. If you click the systray
+icon, you can interact with Tim using your mouse ... if you're like that.
 
 --- tim new ---
 Announce a new project name. You can use dots '.' to create subgroups of
@@ -59,16 +67,17 @@ projects.
   tim new yoyodyne.abc
 
 --- tim start ---
-When you start working on a given project, call 'tim start myprojectname'.
+When you start working on a given project, call 'tim start my_name'.
 The word 'start' can be omitted. Before you can start a project, you must tell
 Tim about with the 'tim new' command.
 
 Project names names can be grouped, simply by inserting dots in the name. Any
-number of grouping levels is allowed.
+number of grouping levels is allowed. Any group name can still record timings,
+even if it contains other names. Anything that makes sense to you... ;)
 
-As soon as the project name is known ('tim start mygroup.myname'), you only
-need to type the part after the last dot ('tim myname'), as long as it does
-not have the same name as any other project in any other group.
+As soon as the project name is known ('tim start my_group.my_name'), you only
+need to type the part after the last dot ('tim my_name'); Tim will find
+'my_group.my_name' from that, as long as there is no other 'my_name' around.
 
 --- tim running ---
 Show the current timer, if any is running. This is the same as calling 'tim'
@@ -156,12 +165,12 @@ total hours become negative.
 - If a group's total is negative, I've already billed hours I haven't worked
   yet; over time, sub-projects of such a group will receive new hours, but the
   negative total of the parent will only be neutralised at the next tickoff
-  command. You may call 'tim tickoff 0 mygroupname' to chronologically
+  command. You may call 'tim tickoff 0 my_name' to chronologically
   neutralise a negative total with hours worked in sub-projects.
-    tim tickoff 0 yoyodyne  # neutralise negative total with sub-projects
 - If you want to keep strictly separate project groups, you should take
-  care to never omit the group name when calling the tickoff command. If it
-  should go wrong one day, you can undo tickoffs one by one with:
+  care to never call 'tickoff' without a name argument, or hours will be
+  neutralised on the root level of all groups. If that should go wrong one
+  day, you can undo tickoffs one by one with:
     tim tickoff --undo
 
 --- tim rename ---
@@ -169,6 +178,19 @@ Rename a project while keeping its hours and logs. This may also move projects
 around between groups.
 Note that this changes the name in all logs back to the start of time, so the
 'tim log' command will not look the same as before.
+
+--- tim fix ---
+Run through the logs, summing up everything, to verify and correct the grand
+total shown by 'tim totals', and to verify and correct the initial totals at
+the beginning of each log file.
+This is particularly useful to edit the recorded timings: simply edit the log
+files in ~/.tim/timelog/, then call 'tim fix' to carry the edits through to
+following log files and the current grand total.
+You can ask tim to only run through a selection of years by enumerating the
+year numbers.
+  tim fix 2012 2013
+The current grand total (shown by 'tim totals') will only be affected when the
+current year number is part of the fix operation.
 
 --- tim forget ---
 Remove a given project from accounting. The data will still be sitting in the
@@ -397,6 +419,11 @@ TIMING_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| (.*)$)'
 STATE_RE = '^([0-9]+) (.*)$' # a PID, and a log entry (parsed in second step)
 TOTALS_LINE_RE = '^(' + NAME_RE + ')=(' + TIME_RE + ')$'
 
+name_syntax_docstr = (
+'''A name may only contain letters a-z, A-Z, decimal numbers and the underscore _;
+A name may not start with a number. Names can be arranged in groups, by using
+a dot to separate group levels: 'tim new my_group.my_inner_group.my_name'.''')
+
 class Regex:
   '''Caches compiled regular expressions. A call to
   Regex.match('([a-z]*) ([0-9]*)', 'foo 123') returns a re.match object and
@@ -597,9 +624,9 @@ class Timelog(Notify):
 
   def validate_project_name(self, name):
     if not Regex.match(NAME_STR_RE, name):
-      raise Timelog.InvalidNameError("Invalid name for a project: '", name,
-               "'\n(only letters, numbers and '_' allowed in project names,",
-               " separated by '.',\nnumbers may not appear at the start.)")
+      raise Timelog.InvalidNameError(
+               "Invalid name for a project: '", name, "'\n",
+               name_syntax_docstr)
 
   def get_totals(self):
     if self.totals is None:
@@ -864,6 +891,8 @@ class Tim(Notify):
     pid = self.lock.remove_stale_lock()
 
   def find_full_name(self, name):
+    if not Regex.match(NAME_STR_RE, name):
+      self.err("Invalid name: '", name, "'\n", name_syntax_docstr)
     totals = self.timelog.get_totals()
     if name in totals:
       return name
@@ -1025,7 +1054,7 @@ class TimCmdline:
   def usage(self, error_message=None):
     _msg(__doc__)
     if (error_message):
-      errmsg(error_message)
+      _errmsg(error_message)
       exit(1)
     exit(0)
 
@@ -1100,7 +1129,7 @@ class TimCmdline:
       selected = [self.tim.find_full_name(arg) for arg in args]
     totals = self.tim.timelog.get_totals()
     if totals:
-      msg('Totals:')
+      _msg('Totals:')
       def show(name, val):
         mins_str = mins2str(val)
         if not ':' in mins_str:
@@ -1132,7 +1161,7 @@ if __name__ == "__main__":
   try:
     TimCmdline(sys.argv[1:])
   except Error, e:
-    errmsg(str(e))
+    _errmsg(str(e))
     print
     raise #exit(-1)
 
