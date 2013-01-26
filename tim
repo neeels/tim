@@ -35,10 +35,11 @@ already submitted to your money supplier.
 
 Make backups of your ~/.tim folder. It contains all of your time logs.
 
-launch a systray icon and GUI:
+Launch a systray icon and GUI:
   tim systray
 
-command line usage:
+Command line usage:
+  tim help [all|examples|<command-name>]
   tim [status]
   tim new <project-name>
   tim [start] <project-name>
@@ -53,18 +54,26 @@ command line usage:
           [sum [<nr>] hours|days|weeks|months|years] \
           [round [<nr>] [hours|days|weeks|months|years]] \
           [-l <name>[.*][,...]] [-g]
+  tim fix [<start-year>] [--clear] [--overlaps=shift|drop]
   tim tickoff <hours> [<project-name>] 
   tim tickoff --undo
   tim rename <current-project-name> <new-project-name>
-  tim fix [<start-year>] [--clear]
   tim forget <project-name>
   tim remember [<id>] [--as <project-name>] [--add-to <project-name>]
-
 
 --- tim systray ---
 Launch a systray icon. Tim should appear in your window manager's taskbar. Put
 'tim systray' in your window manager's autostart. If you click the systray
 icon, you can interact with Tim using your mouse ... if you're like that.
+
+--- tim help ---
+'tim help' without arguments shows a short usage of all commands.
+For details on a command, type 'tim help <command-name>'.
+For some examples, type 'tim help examples'.
+For full help, type 'tim help all'.
+  tim help new
+  tim help start
+  tim help help
 
 --- tim status ---
 Calling tim without arguments shows the current timer, if any is running. This
@@ -100,6 +109,10 @@ just write the comment after the name to start. You may not omit the word
 The comment will be saved in the log, and it may be used to submit the timing
 elsewhere. For example, the OpenGroupware export submits the comment to your
 OpenGroupware server.
+
+A running timer can be stopped with 'tim stop', 'tim stopped' or by starting a
+different name. A running timer can also be adjusted, see 'tim help adjust'.
+For starting in the past, see 'tim help started'.
 
 --- tim started ---
 Say, I have been working since 9 AM, but I forgot to start the timer then. No
@@ -143,11 +156,23 @@ to the current moment in time. The word 'adjust' may be omitted.
     Set the current counter to exactly <duration> hours.
       tim =1      # make as if I called 'start' one hour ago
 
-See also: 'stopped'.
+To adjust and stop at the same time, see 'tim help stopped'.
+
+To change timings that have already stopped, you can edit the log file itself.
+Log files are located in ~/.tim/timelog/ and named per year. The format is:
+YYYY-MM-DD HH:MM my_name hh:mm # my comment
+  meaning:
+<start-datetime> <group> <hours> # <comment>
+After you're done editing logs, be sure to call 'tim fix', see 'tim help fix'.
 
 --- tim stop ---
 Stop the currently running timer. Any arguments after the word 'stop' are
 stored as a comment for the hours just worked.
+
+When you stop a timer, it is recorded in the log and in the grand totals.
+See 'tim help log' and 'tim help totals'.
+
+To stop in the past, see 'tim help stopped'.
 
 --- tim stopped ---
 Say, I stopped working at half past three, but I forgot to stop the timer, and
@@ -170,7 +195,7 @@ exactly at what times you started and stopped working, rather use the
 'stopped' command, as it preserves the starting time and adjusts the stopping
 time instead.
 
-See also: 'adjust', to change the starting time.
+To change the starting time without stopping the timer, see 'tim help adjust'.
 
 --- tim totals ---
 Print the current timing totals of hours spent vs. hours ticked-off on a
@@ -191,6 +216,9 @@ when all worked hours have been ticked off.
     Show per-group timings, do not add them up to the parent groups. Like this
     you may see ticked off hours as negative timings.
 
+To show how the totals came about, see 'tim help log'. To fix the totals if
+they got out of sync (because you edited the timelogs?), see 'tim help fix'.
+
 --- tim log ---
 Show the timings for this week ('1 week' is the default).
 
@@ -210,27 +238,38 @@ amount is 1. These commands are equivalent to those above:
   tim log w a 2012-08-31
   tim log 3 m b 2013
 Available tokens:
-  days weeks months years -- you get what you see.
+  days weeks months years -- a time unit.
   from <date>   -- take the given date as starting point, including <date>.
   until <date>  -- take the given date as end point, including <date>.
   after <date>  -- like 'from', but EXCLUDING <date>.
   before <date> -- like 'until', but EXCLUDING <date>.
+  exactly       -- do not snap to day/week/month start.
+  only <names>  -- show logs for only the given names.
+  sum <unit>
 
 A <date> is of the format 'YYYY-MM-DD_hh:mm', where parts of it may be
-omitted. If <date> starts with a dash, the current year and month are
-inserted as necessary:
+omitted. If <date> starts with a dash, the current year is inserted:
   YYYY-MM-DD_hh:mm
   YYYY-MM-DD
   YYYY-MM
   YYYY
-  -DD
+  -MM
   -MM-DD
+Start with a literal, capital 'W' to issue a week number, with formats:
+  'W'WW
+  YYYY-'W'WW
 Examples:
- '2013-01-11' = 00:00 on 11th of January, 2013.
+ tim log after 2013-01-11 = after 00:00 on 11th of January, 2013.
  '2013-01-11_23:45' = 23:45 on 11th of January, 2013.
  '-10' = 10th of this month, 0:00 AM.
  '-1-1' = first of January, this year.
  '2013' = new year's 2013, 0:00 AM.
+ '2012-W20' = twentieth week in 2013
+ 'W1' = first week this year
+
+<names> is a list of comma-separated timing names, without spaces. Append '.*'
+to a name to include all its subgroups.
+  tim log only yoyodyne.abc.*,foo
 
 By default, log shows every single timing. You can add up timings within a
 given time period with a 'sum' argument:
@@ -245,50 +284,62 @@ shows this week's timings starting on monday, and takes the current time as
 the end-of-a-day boundary (may be useful if you work around midnight and don't
 want those timings to be divided between two calendar days).
   
-    default: show each timing in hours and minutes
-    -D/-W/-M/-Y  start at the beginning of this day/week/month/year
-    -f  start one full time period ago, flowing, floating past boundaries.
-        For example, '-f -W' starts seven days ago, instead of last monday;
-        '-f -M' starts the same day last month, instead of this month's 1st.
-    -n <nr>
-       Repeat above time period for <nr> times into the past.
-  -s <date>
-
 Options:
   -l <name>
     Limit the listing to this project (or group).
 
-  -s
+  -g
     Show per-group timings, do not add them up to the parent groups. Like this
     you may see ticked off hours as negative timings.
 
-  -d/-w/-m/-y
-    combine hours for each day/week/month/year
+To fix any errors in the logs (because you edited them?), see 'tim help fix'.
+
+--- tim fix ---
+Run through the logs, summing up everything, to verify and correct the grand
+total shown by 'tim totals', and to verify and correct the initial totals at
+the beginning of each log file.
+
+This is particularly useful to edit the recorded timings: simply edit the log
+files in ~/.tim/timelog/, then call 'tim fix' to carry the edits through to
+following log files and the current grand total.
+
+Without arguments, all available years are checked and corrected. Each year's
+final totals are carried over to the next year's initial totals. You can ask
+tim to start at a given year if you don't want to run through all of them.
+This will *always* run all the way to the present, and will finally adjust the
+current grand totals on record if necessary (those shown by 'tim totals').
+
+You can provide the option '--clear' to erase the initial totals of the
+starting year. When calling 'tim fix --clear', the first log handled will
+have its initial totals reset to zero.
+  tim fix
+  tim fix 2012  # starts with 2012 and ends with the latest log on record
 
 --- tim tickoff ---
 Record hours that you have already billed your money supplier for. If you are
 timing private / hobby projects, your total hours will simply grow. But if you
 have an employer, ticking off is useful to keep track of how many hours you
-have actually passed on to your employer's accounting. If you are using
-tickoff for any given project, you probably want to reach a total of zero for
-that project at regular intervals. If you've worked less than you billed, your
-total hours become negative.
-- If no project name is supplied, the tickoff is chronologically spread across
-  all projects, so that the hours worked longest ago are ticked off first.
+have actually passed on to your employer's accounting.
+
+When using 'tickoff' for any given project, you probably want to reach a total
+of zero for that project at regular intervals. If you've worked less than you
+billed, your total hours become negative.
+
+- If no project name is supplied, the tickoff is recorded on the root level of
+  all groups.
     tim tickoff 32
-- You can tickoff a group (yoyodyne), in which case the hours contained in any
-  sub-projects and sub-sub-projects are ticked-off in their chronological
-  order (see examples below). You can also tickoff subprojects specifically.
-    tim tickoff 32 yoyodyne
+
+- You can tickoff a group (yoyodyne). This "neutralizes" the hours of any
+  subgroups in the totals shown by 'tim totals'. You can also tickoff
+  subprojects specifically.
+    tim tickoff 6 yoyodyne
+    tim tickoff 32 upperstarter.foo
+
 - If a group's total is negative, I've already billed hours I haven't worked
-  yet; over time, sub-projects of such a group will receive new hours, but the
-  negative total of the parent will only be neutralised at the next tickoff
-  command. You may call 'tim tickoff 0 my_name' to chronologically
-  neutralise a negative total with hours worked in sub-projects.
-- If you want to keep strictly separate project groups, you should take
-  care to never call 'tickoff' without a name argument, or hours will be
-  neutralised on the root level of all groups. If that should go wrong one
-  day, you can undo tickoffs one by one with:
+  yet; over time, as you record more timings, the group or its sub-groups will
+  receive new hours, and the negative value will approach positive numbers.
+
+- You can undo tickoffs one by one with:
     tim tickoff --undo
 
 --- tim rename ---
@@ -296,24 +347,6 @@ Rename a project while keeping its hours and logs. This may also move projects
 around between groups.
 Note that this changes the name in all logs back to the start of time, so the
 'tim log' command will not look the same as before.
-
---- tim fix ---
-Run through the logs, summing up everything, to verify and correct the grand
-total shown by 'tim totals', and to verify and correct the initial totals at
-the beginning of each log file.
-This is particularly useful to edit the recorded timings: simply edit the log
-files in ~/.tim/timelog/, then call 'tim fix' to carry the edits through to
-following log files and the current grand total.
-Without arguments, all available years are checked and corrected. Each year's
-final totals are carried over to the next year's initial totals. You can ask
-tim to start at a given year if you don't want to run through all of them.
-This will *always* run all the way to the present, and will finally adjust the
-current grand totals on record if necessary (those shown by 'tim totals').
-You can provide the option '--clear' to erase the initial totals of the
-starting year. When calling 'tim fix --clear', the first log on record will
-have its initial totals reset to zero.
-  tim fix
-  tim fix 2012  # starts with 2012 and ends with the latest log on record
 
 --- tim forget ---
 Remove a given project from accounting. The data will still be sitting in the
@@ -325,8 +358,8 @@ Recover a project previously forgotten with 'tim forget'. Run without
 arguments to get a listing of IDs for forgotten projects or groups.
 
 --- EXAMPLE ---
-  This example shows a sequence of tim commands. Imagine that time passes
-  between each pair of start ... stop commands.
+This example shows a sequence of tim commands. Imagine that time passes
+between each pair of start ... stop commands.
   
   tim new foo
   tim foo
@@ -346,15 +379,17 @@ arguments to get a listing of IDs for forgotten projects or groups.
   tim stop
 
   tim log                  # show the log of this week (starting monday)
-  tim log -w -n 5          # show last five weeks (five times seven days)
-  tim log yoyodyne         # show log for yoyodyne.* projects only
+  tim log 5 weeks exactly  # show last five weeks (five times seven days)
+  tim log only yoyodyne.*  # show log for yoyodyne.* projects only
+  tim log 5 w e            # same as '5 weeks exactly'
+  tim log o yoyodyne.*     # same as 'only yoyodyne.*'
 
   tim totals               # show the sum of all hours for all projects
   tim tickoff 32 yoyodyne  # I have billed yoyodyne for 32 hours.
   tim totals               # Above 32 hours are now subtracted from the totals.
- '''
+'''
 
-import re, os, errno, time, shutil, sys, signal
+import re, os, errno, time, shutil, sys, signal, math
 import daemon
 import lockfile
 from os.path import join as j
@@ -388,6 +423,9 @@ def _errmsg(*msgs):
   sys.stderr.write('\n')
   sys.stderr.flush()
   
+def _debug(*msgs):
+  _msg('####### ', *msgs)
+  pass
 
 # generic conversion functions ###############################################
 
@@ -457,7 +495,17 @@ def str2time(string, fmt=TIMESTR_FORMAT):
   return time.mktime( time.strptime(string, fmt) )
 
 def time2year(float_time):
-  return int(time.strftime('%Y', time.localtime(float_time)))
+  return int(time.localtime(float_time).tm_year)
+
+def time2weekday(float_time):
+  # time_struct has monday == 0, while strptime() has sunday == 0.
+  # convert to sunday == 0.
+  return (int(time.localtime(float_time).tm_wday) + 1) % 7
+
+def time2weekdaystr(float_time, weekday_strings={
+    0:'Sunday', 1:'Monday', 2:'Tuesday', 3:'Wednesday', 4:'Thursday',
+    5:'Friday', 6:'Saturday'}):
+  return weekday_strings[time2weekday(float_time)]
 
 def filename_timestamp(float_time=None):
   if float_time is None:
@@ -473,32 +521,44 @@ UNIT_YEAR = 4
 
 def date_beginning_of(unit, date):
   if UNIT_HOUR == unit:
-    round_fmt = "%Y %j %H"
+    round_fmt = '%Y %j %H'
   elif UNIT_DAY == unit:
-    round_fmt = "%Y %j"
+    round_fmt = '%Y %j'
   elif UNIT_WEEK == unit:
-    round_fmt = "%Y %W"
+    round_fmt = '%Y %W'
   elif UNIT_MONTH == unit:
-    round_fmt = "%Y %m"
+    round_fmt = '%Y %m'
   elif UNIT_YEAR == unit:
-    round_fmt = "%Y"
-  return str2time( time2str(date, fmt=round_fmt), fmt=round_fmt)
+    round_fmt = '%Y'
+
+  rounded_str = time2str(date, fmt=round_fmt)
+  
+  if UNIT_WEEK == unit:
+    # strptime with %W (week of year) only works with %w (day of week).
+    # So add 'Monday'.
+    round_fmt += ' %w'
+    rounded_str += ' 1'
+
+  res = str2time( rounded_str, fmt=round_fmt)
+  #_debug('date_beginning_of(', unit, ',', date, ')=', time2str(res))
+  return res
   
 def date_end_of(unit, date):
-  return date_beginning_of(unit,
+  res =  date_beginning_of(unit,
                            date_beginning_of(unit, date)
                              + 1.5 * date_seconds_per(unit))
+  return res
   
 def date_add(amount, unit, date):
   amount_frac, amount_int = math.modf(amount)
   amount_int = int(amount_int)
   seconds_per_unit = date_seconds_per(unit)
   # integer part
-  if int_amount:
+  if amount_int:
     beginning = date_beginning_of(unit, date)
     surplus = date - beginning
     mid = beginning + seconds_per_unit/2
-    mid += seconds_per_unit * amount
+    mid += seconds_per_unit * amount_int
     result = date_beginning_of(unit, mid) + surplus
   else:
     result = date
@@ -711,6 +771,23 @@ class Timing:
       self.comment = None
     return self
 
+  def matches(self, other):
+    return (
+      (other.started is None or self.started == other.started)
+      and (other.name is None or self.name == other.name)
+      and (other.minutes is None or self.minutes == other.minutes)
+      and (other.comment is None or self.comment == other.comment))
+
+  def __cmp__(self, other):
+    c = cmp(self.started, other.started)
+    if c: return c
+    c = cmp(self.name, other.name)
+    if c: return c
+    c = cmp(self.minutes, other.minutes)
+    if c: return c
+    c = cmp(self.comment, other.comment)
+    return c
+
   def clear(self):
     self.set_values()
 
@@ -757,6 +834,9 @@ class Timing:
       if was != self.comment:
         return True
     return False
+
+  def started_year(self):
+    return time2year(self.started)
 
 
 class State:
@@ -838,11 +918,13 @@ class Totals:
   def __init__(self, totals_path=None, read=True):
     self.entries = {}
     self.totals_path = totals_path
+    self.modified = False
     if totals_path and read:
       self.read()
 
   def set_to(self, other_totals_instance):
     self.entries = other_totals_instance.entries.copy()
+    self.modified = True
     return self
 
   def copy(self):
@@ -859,9 +941,11 @@ class Totals:
     if name in self.entries:
       raise Totals.TotalsErr("Already exists: '", name, "'")
     self.entries[name] = 0
+    self.modified = True
 
   def _add_timing(self, name, minutes):
     self.entries[name] = (self.get(name) or 0) + minutes
+    self.modified = True
 
   def add_timing(self, timing):
     self._add_timing(timing.name, timing.minutes)
@@ -906,6 +990,7 @@ class Totals:
         if not line.strip():
           continue
         self.deserialize(line)
+    self.modified = False
 
   def get_serialized_items(self):
     return [ ( '%s=%s\n' % (name, mins2str(minutes)) )
@@ -917,9 +1002,11 @@ class Totals:
   def save(self):
     assert(self.totals_path)
     write_file(self.totals_path, repr(self))
+    self.modified = False
 
   def clear(self):
     self.entries = {}
+    self.modified = True
 
   def to_string(self, selected=None):
     items = []
@@ -1016,6 +1103,8 @@ class Totals:
 
 
 class Timelog(Notify):
+  FIX_OVERLAPS_SHIFT = 1
+  FIX_OVERLAPS_DROP = 2
 
   def __init__(self, notify_func, timelog_dir):
     Notify.__init__(self, notify_func)
@@ -1041,7 +1130,7 @@ class Timelog(Notify):
                name_syntax_docstr)
 
   def get_totals(self):
-    return Totals(self.notify_func, self.totals_path)
+    return Totals(self.totals_path)
 
   def add_name(self, name):
     Timelog.validate_name(name)
@@ -1049,12 +1138,13 @@ class Timelog(Notify):
     t.add_name(name)
     t.save()
 
-  def add_timing(self, timing):
+  def add_timing(self, timing, directly_to_file=True):
     timings_file = self.year()
-    timings_file.add_timing(timing)
+    timings_file.add_timing(timing, directly_to_file=directly_to_file)
     t = self.get_totals()
     t.add_timing(timing)
-    t.save()
+    if directly_to_file:
+      t.save()
 
 
   class TimingsFile(Notify):
@@ -1065,11 +1155,14 @@ class Timelog(Notify):
       self.totals = None
       self.initial_totals = None
       self.exists = None
+      self.modified = None
+      self.valid = True
       if read:
         self.read()
 
     def read(self):
       self.exists = False
+      self.modified = False
       try:
         lf = open(self.path, "r")
         self.exists = True
@@ -1083,6 +1176,7 @@ class Timelog(Notify):
         raise
 
       try:
+        self.valid = False
         self.timings = []
         self.initial_totals = Totals()
 
@@ -1119,40 +1213,78 @@ class Timelog(Notify):
           self.timings.append(t)
 
         self.update_totals()
+        self.valid = True
+        self.modified = False
 
       finally:
         lf.close()
 
     def update_totals(self):
-      self.totals = Totals()
-      self.totals.set_to(self.initial_totals)
+      totals = Totals()
+      totals.set_to(self.initial_totals)
       for t in self.timings:
-        self.totals.add_timing(t)
+        totals.add_timing(t)
+      if not self.modified:
+        if totals != self.totals:
+          self.modified = True
+      self.totals = totals
 
-    def add_timing(self, timing):
+    def set_initial_totals(self, initial_totals):
+      if self.initial_totals is None:
+        self.initial_totals = Totals()
+      if not self.modified:
+        if self.initial_totals != initial_totals:
+          self.modified = True
+      self.initial_totals.set_to(initial_totals)
+
+    def add_timing(self, timing, directly_to_file=False):
       assert(isinstance(timing, Timing))
       if timing.minutes == 0:
         return
-      append_to_file(self.path, timing.serialize())
+      #_debug('Adding ', repr(timing))
       self.timings.append(timing)
       self.update_totals()
+      if directly_to_file:
+        append_to_file(self.path, timing.serialize())
+      else:
+        self.modified = True
+
+    def remove_timing(self, timing):
+      matches = [i for i,t in enumerate(self.timings)
+                 if t.matches(timing)]
+      l = len(matches)
+      if l < 1:
+        _raise('Cannot remove timing: start date ',
+               time2str(timing.started), ' not found in ', self.path)
+      if l > 1:
+        _raise('Cannot remove timing: multiple matches found in ',
+               self.path, ' for ', repr(timing))
+      match_idx = matches[0]
+      #_debug('Removing ', repr(self.timings[match_idx]))
+      del self.timings[match_idx]
+      self.modified = True
 
     def save(self):
+      if not self.valid:
+        _raise('Not saving invalid timings file.')
       lines = [ ' '.join((INITIAL_TOTAL_KEYWORD, line))
                 for line in self.initial_totals.get_serialized_items() ]
       lines.extend([ t.serialize() for t in self.timings ])
       write_file(self.path, ''.join(lines))
+      self.modified = False
+
+    def sort(self):
+      new = sorted(self.timings)
+      if new != self.timings:
+        self.timings = new
+        self.modified = True
 
   def path_for_year(self, year):
     return j(self.timelog_dir, str(int(year)))
 
-  @staticmethod
-  def current_year():
-    return time2year(now())
-
   def year(self, year=None):
     if year is None:
-      year = Timelog.current_year()
+      year = time2year(now())
     year = int(year)
     timings_file = self.timelog_files.get(year)
     if not timings_file:
@@ -1167,12 +1299,171 @@ class Timelog(Notify):
     return [int(name) for name in files
             if name.isdigit() and os.path.isfile(j(self.timelog_dir, name))]
 
-  def fix(self, start_year=None, clear=False):
+  def fix(self, start_year=None, clear_initial_totals=False,
+          fix_overlaps=None):
     unfixed = 0
-    fixes_made = 0
+    fixed = 0
 
     if start_year:
       start_year = int(start_year)
+
+    years_available = self.years_available()
+    if start_year is None:
+      start_year = min(years_available)
+    elif start_year not in years_available:
+      _raise('No record for ', start_year)
+    else:
+      start_year = max(min(years_available), start_year)
+    years_available = range(start_year, max(years_available)+1)
+
+    unfixed, fixed = self._fix_timings_in_wrong_years(years_available)
+    u2, f2 = self._fix_sorting(years_available)
+    unfixed += u2
+    fixed += f2
+
+    while True:
+      u2, f2 = self._fix_overlaps(years_available, 
+                      fix_overlaps=fix_overlaps)
+      unfixed += u2
+      fixed += f2
+      if not f2:
+        break
+      # do this again, without counting fixes
+      self._fix_timings_in_wrong_years(years_available)
+      self._fix_sorting(years_available)
+
+    u2, f2 = self._fix_totals(years_available, clear_initial_totals)
+    unfixed += u2
+    fixed += f2
+    if (fixed < 1) and (unfixed < 1):
+      self.msg('All correct.')
+    else:
+      if fixed:
+        self.msg('Errors fixed: ', fixed)
+      if unfixed:
+        self.warn('Unfixed errors: ', unfixed)
+
+  def _fix_timings_in_wrong_years(self, yearnrs):
+    '''check individual entries, sort them into the correct files.'''
+    fixed = 0
+    unfixed = 0
+
+    entries_in_wrong_file = {}
+
+    for yearnr in yearnrs:
+      year = self.year(yearnr)
+
+      wrong_here = {}
+      for t in year.timings:
+        started_year = t.started_year()
+        if yearnr != started_year:
+          wrong_timings = wrong_here.get(started_year)
+          if wrong_timings is None:
+            wrong_timings = []
+            wrong_here[started_year] = wrong_timings
+          wrong_timings.append(t)
+
+      if wrong_here:
+        count = sum([len(timings_list)
+                     for k,timings_list in wrong_here.iteritems()])
+        self.msg('** removing ', count, ' wrong timings from ', yearnr, ':')
+        for k,timings_list in wrong_here.iteritems():
+          for t in timings_list:
+            year.remove_timing(t)
+            self.msg('    ', repr(t))
+
+          wrong_timings = entries_in_wrong_file.get(k)
+          if wrong_timings is None:
+            wrong_timings = []
+            entries_in_wrong_file[k] = wrong_timings
+          wrong_timings.extend(timings_list)
+
+      if year.modified:
+        year.save()
+
+
+    for yearnr,timings in entries_in_wrong_file.iteritems():
+      self.msg('++ adding ', len(timings), ' timings to ', yearnr)
+      year = self.year(yearnr)
+      for t in timings:
+        year.add_timing(t)
+        self.msg('    ', repr(t))
+        fixed += 1
+      if year.modified:
+        year.save()
+
+    return unfixed, fixed
+
+  def _fix_sorting(self, yearnrs):
+    fixed = 0
+    unfixed = 0
+    for yearnr in yearnrs:
+      year = self.year(yearnr)
+      year.sort()
+      if year.modified:
+        self.msg('** sorted entries in ', yearnr)
+        fixed += 1
+        year.save()
+    return unfixed, fixed
+
+  def _fix_overlaps(self, yearnrs, fix_overlaps=None):
+    fixed = 0
+    unfixed = 0
+    for yearnr in yearnrs:
+      year = self.year(yearnr)
+      prev = None
+      for t in year.timings:
+        if prev:
+          prev_until = prev.started + 60 * prev.minutes 
+        else:
+          prev_until = None
+        was_fixed = False
+        if prev_until > t.started:
+          t_was = repr(t)
+          overlap = prev_until - t.started
+          if fix_overlaps == Timelog.FIX_OVERLAPS_SHIFT:
+            msg = 'shifted '
+            t.started = prev_until
+            year.modified = True
+            fixed += 1
+            was_fixed = True
+          elif fix_overlaps == Timelog.FIX_OVERLAPS_DROP:
+            msg = 'dropped '
+            t.minutes -= overlap / 60
+            if t.minutes < 0:
+              t.minutes = 0
+            t.started = prev_until
+            year.modified = True
+            fixed += 1
+            was_fixed = True
+          else:
+            unfixed += 1
+            msg = 'NOT FIXING: '
+          
+          if prev_was_fixed:
+            prev_fixed_str = ' after above fix'
+          else:
+            prev_fixed_str = ''
+          self.msg('** ', msg, 'overlap:',
+                   '\n      ', repr(prev),
+                   #        YYYY-MM-DD HH:MM
+                   '\n          (until %5s' % time2str(prev_until, fmt='%H:%M'),
+                      prev_fixed_str, ')'
+                   '\n  and ', t_was,
+                   '\n     (overlap by %5s' % mins2str(float(overlap)/60),')')
+          if was_fixed:
+            self.msg('  --> ', repr(t))
+        prev = t
+        prev_was_fixed = was_fixed
+
+      if year.modified:
+        year.save()
+        year.update_totals()
+    return unfixed, fixed
+
+  def _fix_totals(self, yearnrs, clear_initial_totals):
+    fixed = 0
+    unfixed = 0
 
     def diff_totals(t_is, t_shouldbe):
       for name, minutes in sorted(t_is.iteritems()):
@@ -1189,25 +1480,17 @@ class Timelog(Notify):
 
     prev_totals = None
 
-    years_available = self.years_available()
-    years_available = range(min(years_available), max(years_available)+1)
-
-    if not start_year:
-      start_year = years_available[0]
-    elif start_year not in years_available:
-      _raise('No record for ', start_year)
-
-    for yearnr in years_available:
-      if yearnr < start_year:
-        continue
+    for yearnr in yearnrs:
       year = self.year(yearnr)
       if not year.exists:
         self.warn('No log for ', yearnr)
 
+      year.update_totals()
+
       changed_initial_totals = False
 
       if (not prev_totals) and (not year.initial_totals.is_empty()):
-        if clear:
+        if clear_initial_totals:
           save_path = j(os.path.dirname(year.path),
                         'initial_totals_of_' + os.path.basename(year.path)
                         + '_removed_at_' + filename_timestamp())
@@ -1216,8 +1499,8 @@ class Timelog(Notify):
           write_file(save_path, repr(year.initial_totals))
           year.initial_totals.clear()
           changed_initial_totals = True
-          fixes_made += 1
-        elif yearnr == years_available[0]:
+          fixed += 1
+        elif yearnr == yearnrs[0]:
           unfixed += 1
           self.warn('NOT FIXING: ', yearnr, ' is the first year on record, ',
                     'but it has initial totals:\n',
@@ -1231,15 +1514,18 @@ class Timelog(Notify):
         self.msg('** fixing: the initial totals in ', yearnr, ' are wrong.')
         diff_totals(year.initial_totals, prev_totals)
 
-        year.initial_totals.set_to(prev_totals)
+        year.set_initial_totals(prev_totals)
         changed_initial_totals = True
-        fixes_made += 1
+        fixed += 1
 
       if changed_initial_totals:
         year.update_totals()
         year.save()
 
       prev_totals = year.totals
+      
+          
+
 
     # finally, update the current grand totals to the last totals seen
     if prev_totals:
@@ -1249,42 +1535,270 @@ class Timelog(Notify):
         diff_totals(totals, prev_totals)
         totals.set_to(prev_totals)
         totals.save()
-        fixes_made += 1
+        fixed += 1
 
-    if (fixes_made < 1) and (unfixed < 1):
-      self.msg('All correct.')
-    else:
-      if fixes_made:
-        self.msg('** errors fixed: ', fixes_made)
-      if unfixed:
-        self.warn('unfixed errors: ', unfixed)
+    return unfixed, fixed
+
 
   class QueryErr(Error):
     pass
 
-  class QueryPhraseParser:
+
+  class Query:
+    def __init__(self, unit=None, amount=None, start=None, end=None,
+                 snap_to_calendar=None, include_end=None, include_start=None,
+                 rounding=None, sum_unit=None, group=None):
+      '''unit: a UNIT_* constant.
+         amount: a float number.
+         start: a start date in unix time (seconds since epoch), inclusive.
+         end: a date like in start, inclusive.
+         snap_to_calendar: if True, amount is reduced to start with a
+           beginning of the <unit> (week, month...).
+      '''
+      self.unit = unit
+      self.amount = amount
+      self.start = start
+      self.end = end
+      self.snap_to_calendar = snap_to_calendar
+      self.include_start = include_start
+      self.include_end = include_end
+      self.rounding = rounding
+      self.sum_unit = sum_unit
+      self.group = group
+
+
+
+  class QueryResult:
+    def __init__(self):
+      self.timings = []
+      self.totals = Totals()
+      self.from_query = None
+      # the following are not the exact values from the Query instance.
+      # They may me filled up with defaults or matched up with reality...
+      self.start = None
+      self.end = None
+      self.include_start = None
+      self.include_end = None
+      self.unit = None
+      self.amount = None
+      self.snap_to_calendar = None
+      self.group = None
+      self.rounding = None
+
+    def description_str(self):
+      lines = []
+
+      tokens = []
+      if self.unit:
+        unit_phrase = Timelog.QueryPhrase.unit_phrase_for(self.unit)
+
+      if self.amount and self.unit:
+        amount = self.amount
+        amount_frac, amount_int = math.modf(amount)
+        if amount_frac == 0.0:
+          s = str(int(amount_int))
+        else:
+          s = str(amount_int)
+        tokens.append(' '.join((s, unit_phrase,)))
+
+      if self.from_query:
+        q = self.from_query
+        if q.start:
+          if self.snap_to_calendar:
+            s = 'around '
+          else:
+            if not q.include_start:
+              s = 'after '
+            else:
+              s = ''
+          tokens.append(msgs2str(('starting ', s, time2str(q.start),)))
+
+        if q.end:
+          if self.snap_to_calendar:
+            s = 'around '
+          else:
+            if not q.include_end:
+              s = 'before '
+            else:
+              s = ''
+          tokens.append(msgs2str(('ending ', s, time2str(q.end),)))
+
+        if (q.start is None) and (q.end is None):
+          if q.snap_to_calendar:
+            s = 'around '
+          else:
+            s = ''
+          tokens.append(msgs2str(('ending ', s, 'now',)))
+
+        if self.snap_to_calendar and self.unit:
+          tokens.append(msgs2str(('showing entire ', unit_phrase,)))
+        elif not self.snap_to_calendar:
+          tokens.append('exactly')
+
+      if tokens:
+        lines.append(msgs2str((', '.join(tokens), '.',)))
+
+      lines.append(msgs2str((
+           time2weekdaystr(self.start), ' ', time2str(self.start),
+           ' ... ',
+           time2weekdaystr(self.end), ' ', time2str(self.end), ':')))
+
+      return '\n'.join(lines)
+
+    def add_timing(self, timing):
+      self.timings.append(timing)
+      self.totals.add_timing(timing)
+
+    def __repr__(self):
+      return ''.join(('[', ','.join((repr(self.timings), repr(self.totals),)),
+                      ']',))
+    def __str__(self):
+      return repr(self)
+
+  class QueryPhrase(Query):
     unit_phrases = {
         'hours' : UNIT_HOUR,
         'days' : UNIT_DAY,
         'weeks' : UNIT_WEEK,
         'months' : UNIT_MONTH,
         'years' : UNIT_YEAR,
-      }
+      } 
+
+    @staticmethod
+    def unit_phrase_for(unit_id):
+      r = [phrase
+           for phrase,unit in Timelog.QueryPhrase.unit_phrases.iteritems()
+           if unit_id == unit]
+      if len(r) != 1:
+        return None
+      return r[0]
+
     def __init__(self, tokens):
+      Timelog.Query.__init__(self)
       self.tokens = tokens
-      self.amount = None
-      self.unit = None
-      self.start = None
-      self.end = None
-      self.snap_to_calendar = None
-      self.group = None
-      self.rounding = None
 
       self.l = len(tokens)
       self.i = -1
       self.token = None
 
       self.parse()
+
+    @staticmethod
+    def parse_date_str(string):
+      s = string
+      y = None
+      mo = None
+      d = None
+      h = None
+      mi = None
+      w = None
+      while True:
+        l = len(s)
+        if not l:
+          break
+
+        y_end = 0
+        while (y_end < l) and s[y_end].isdigit():
+          y_end += 1
+
+        if y_end:
+          y = int(s[:y_end])
+          s = s[y_end:]
+          continue
+
+        if s.startswith('-W'):
+          w = int(s[2:])
+          break
+        if s.startswith('W'):
+          w = int(s[1:])
+          break
+
+        if s.startswith('-'):
+          parts = s[1:].split('-')
+          nrs = parts[:-1]
+          last_part_digits = 0
+          last_part = parts[-1]
+          l = len(last_part)
+          while (last_part_digits < l) and last_part[last_part_digits].isdigit():
+            last_part_digits += 1
+          nrs.append(last_part[:last_part_digits])
+          s = last_part[last_part_digits:]
+
+          l = len(nrs)
+          if l >= 1:
+            mo = int(nrs[0])
+            if l == 2:
+              d = int(nrs[1])
+            elif l > 2:
+              _raise("Too many dashes '-' in date: '", string, "'")
+          continue
+
+        if s.startswith('_') or s.startswith(' '):
+          hm = s[1:].split(':')
+          if not hm[-1].isdigit():
+            _raise("Too much information in date: '", string, "'")
+
+          if len(hm) >= 1:
+            h = int(hm[0])
+            if len(hm) == 2:
+              m = int(hm[1])
+            elif len(hm) > 2:
+              _raise("Too many colons ':' in date: '", string, "'")
+          break
+
+        _raise("Expected a date, got '", string, '"')
+
+      n = time.localtime()
+
+      if not y:
+        y = n.tm_year
+        if not mo:
+          mo = n.tm_mon
+          if not d:
+            d = n.tm_mday
+            if not h:
+              h = n.tm_hour
+              if not mi:
+                mi = n.tm_min
+            else:
+              # h given
+              if not mi:
+                mi = 0
+          else:
+            # day given
+            if not h:
+              h = 0
+            if not mi:
+              mi = 0
+        else:
+          # month given
+          if not d:
+            d = 1
+          if not h:
+            h = 0
+          if not mi:
+            mi = 0
+      else:
+        # year given
+        if not mo:
+          mo = 1
+        if not d:
+          d = 1
+        if not h:
+          h = 0
+        if not mi:
+          mi = 0
+
+      year_str = str(y)
+      if len(year_str) < 4:
+        year_str = ('0' * (4-len(year_str))) + year_str
+
+      if w:
+        return str2time(year_str + ' ' + str(w) + ' 1', fmt='%Y %W %w')
+
+      return str2time(
+        year_str + '-' + str(mo) + '-' + str(d) + ' '
+        + str(h) + ':' + str(mi))
 
     def next_arg(self):
       if (self.i + 1) >= self.l:
@@ -1298,12 +1812,12 @@ class Timelog(Notify):
       if self.i >= self.l:
         self.err('Missing ', name, ' argument at end of arguments')
 
-    def next_date_arg(self):
-      self.next_arg('date')
+    def next_date_arg(self, **kwargs):
+      self.expect_arg('date')
       return self.parse_date_str(self.token)
 
     def unit_arg(self):
-      for phrase, phrase_unit in Timelog.QueryPhraseParser.unit_phrases.iteritems():
+      for phrase, phrase_unit in Timelog.QueryPhrase.unit_phrases.iteritems():
         if phrase.startswith(self.token):
           return phrase_unit
       return None
@@ -1317,33 +1831,40 @@ class Timelog(Notify):
 
     def superfluous(self, name, val):
       if val is not None:
-        self.err('Superfluous ', name)
+        self.err('Too much: ', name)
 
     def err(self, *msgs):
-      raise QueryErr(msgs2str(msgs), " ('", self.token,
+      raise Timelog.QueryErr(msgs2str(msgs), " ('", self.token,
                      "', word ", self.i+1, ')')
       
     def parse(self):
       while self.next_arg():
-        arg_unit = unit_arg()
+        arg_unit = self.unit_arg()
         if arg_unit:
-          self.superfluous('unit', self.unit)
+          self.superfluous("unit '" + 
+                             Timelog.QueryPhrase.unit_phrase_for(arg_unit)
+                             + "'",
+                           self.unit)
           self.unit = arg_unit
-        elif 'complete'.startswith(self.token):
-          self.superfluous('complete keyword', self.snap_to_calendar)
+        elif 'exactly'.startswith(self.token):
+          self.superfluous("'exactly' keyword", self.snap_to_calendar)
           self.snap_to_calendar = False
         elif 'from'.startswith(self.token):
-          self.superfluous('start indicator', self.start)
-          self.start = self.next_date_arg(beginning=True)
-        elif 'after'.startswith(self.token):
-          self.superfluous('start indicator', self.start)
-          self.start = self.next_date_arg(after=True)
+          self.superfluous("start indicator 'from'", self.start)
+          self.start = self.next_date_arg()
+          self.include_start = True
         elif 'until'.startswith(self.token):
-          self.superfluous('end indicator', self.end)
-          self.end = self.next_date_arg(end=True)
+          self.superfluous("end indicator 'until'", self.end)
+          self.end = self.next_date_arg()
+          self.include_end = True
+        elif 'after'.startswith(self.token):
+          self.superfluous("start indicator 'after'", self.start)
+          self.start = self.next_date_arg()
+          self.include_start = False
         elif 'before'.startswith(self.token):
-          self.superfluous('end indicator', self.end)
-          self.end = self.next_date_arg(before=True)
+          self.superfluous("end indicator 'before'", self.end)
+          self.end = self.next_date_arg()
+          self.include_end = False
         elif 'sum'.startswith(self.token):
           self.superfluous('sum request', self.sum_unit)
           self.next_arg()
@@ -1358,8 +1879,11 @@ class Timelog(Notify):
               self.err('Expecting time unit')
           else:
             self.sum_amount = 1
+          self.err('sum not implemented')
         elif 'round'.startswith(self.token):
           self.err('round not implemented')
+        elif 'only'.startswith(self.token):
+          self.err('only not implemented')
         else:
           nr = self.nr_arg()
           if nr is not None:
@@ -1369,111 +1893,124 @@ class Timelog(Notify):
             self.err('Unknown argument')
 
 
-  class Query:
-
-    def __init__(self, unit=UNIT_WEEK, amount=1.0,
-                 start=None, end=None, snap_to_calendar=True):
-      '''unit: a UNIT_* constant.
-         amount: a float number.
-         start: a start date in unix time (seconds since epoch), inclusive.
-         end: a date like in start, inclusive.
-         snap_to_calendar: if True, amount is reduced to start with a
-           beginning of the <unit> (week, month...).
-      '''
-      self.unit = unit
-      self.amount = amount
-      self.start = start
-      self.end = end
-      self.snap_to_calendar = snap_to_calendar
-
-
-    def from_phrase(self, _tokens):
-      parser = Timelog.QueryPhraseParser(tokens)
-      self.start = parser.start
-      self.end = parser.end
-      self.unit = parser.unit or self.unit
-      self.amount = parser.amount or self.amount
-      self.snap_to_calendar = parser.snap_to_calendar or self.snap_to_calendar
-
-
-  class Result:
-    def __init__(self):
-      self.timings = []
-      self.totals = Totals()
-
-    def add_timing(self, timing):
-      self.timings.append(timing)
-      self.totals.add_timing(timing)
-
+  def run_query_phrase(self, phrase_tokens):
+    return self.run_query( Timelog.QueryPhrase(phrase_tokens) )
 
   def run_query(self, query):
     '''query: a Timelog.Query instance describing the search request.
-       returns: a Timelog.Result instance with .timings and .totals
+       returns: a Timelog.QueryResult instance with .timings and .totals
                 populated according to the query.'''
-    if (query.start is None) and (query.end is None):
-      end = now()
-      start = None
-      amount = query.amount
-    else:
-      start = query.start
-      end = query.end
-      amount = query.amount
+    start = query.start
+    end = query.end
+    amount = query.amount
     unit = query.unit
+    include_start = query.include_start
+    include_end = query.include_end
+    snap_to_calendar = query.snap_to_calendar
 
-    if (start is not None) and (end is not None) and (amount is not None):
-      raise QueryErr('One of start, end or amount must be None.')
-    
-    if end is None:
-      if (amount is None) or (start is None):
-        raise QueryErr('When there is no end, I need an amount and a start.')
-      # rearrange into end with negative amount
-      end = start
-      amount = -amount
+    # defaults
+    if (start is None) and (end is None):
+      end = now()
+    if (start is None) or (end is None):
+      if amount is None:
+        amount = 1.0
+    if snap_to_calendar is None:
+      snap_to_calendar = True
+    if unit is None:
+      unit = UNIT_WEEK
+    if include_start is None:
+      include_start = True
+    if include_end is None:
+      include_end = True
 
-    if start is None:
-      if (amount is None) or (end is None):
-        raise QueryErr('When there is no start, I need an amount and an end.')
+    #_debug(time2str(start), '-', time2str(end), ' ', amount, ' ', unit, ' ', snap_to_calendar)
 
-      if query.snap_to_calendar:
-        if amount >= 1:
-          end = date_end_of(unit, end)
-          start = date_subtract(amount, unit, end)
-        if amount <= -1:
-          start = date_beginning_of(unit, end)
-          end = date_add(amount, unit, start)
+    # validate: exactly two values of start, end, amount must be supplied.
+    supplied_count = 0
+    for b in (start, end, amount):
+      if b is not None:
+        supplied_count += 1
+    if supplied_count != 2:
+      if supplied_count < 2:
+        word = 'few'
       else:
-        start = date_subtract(amount, unit, end)
-      
-    elif amount is None:
-      if (start is None) or (end is None):
-        raise QueryErr('When there is no amount, I need a start and an end.')
-      
-    return self.get_entries(start, end)
+        word = 'many'
+      raise Timelog.QueryErr('Too ', word, ' values. ',
+       'Any two of start, end or amount must be given, ',
+       'while the third must be omitted.')
+    
+    amount = abs(amount)
 
-  def get_entries(self, start_date, end_date):
+    if snap_to_calendar:
+      if start is not None:
+        if include_start:
+          start = date_beginning_of(unit, start)
+        else:
+          start = date_end_of(unit, start)
+      if end is not None:
+        if include_end:
+          end = date_end_of(unit, end)
+          if end < query.end:
+            end = query.end
+        else:
+          end = date_beginning_of(unit, end)
+
+    if end is None:
+      end = date_add(amount, unit, start)
+    elif start is None:
+      start = date_subtract(amount, unit, end)
+
+    end -= 1e-6
+      
+    query_result = self.get_entries(start, end, include_start, include_end)
+
+    # enrich result with information about the values queried
+    query_result.from_query = query
+    query_result.unit = unit
+    query_result.amount = amount
+    query_result.snap_to_calendar = snap_to_calendar
+    return query_result
+
+
+  def get_entries(self, start_date, end_date, include_start, include_end):
     if start_date > end_date:
-      x = start_date
-      start_date = end_date
-      end_date = x
+      _raise('Start date is later than end date: ',
+             time2str(start_date) , ' > ', time2str(end_date), '.')
+    #  x = start_date
+    #  start_date = end_date
+    #  end_date = x
+    #  x = include_start
+    #  include_start = include_end
+    #  include_end = x
 
     y = time2year(start_date)
     end_year = time2year(end_date)
 
-    result = Timelog.Result()
+    result = Timelog.QueryResult()
+    result.start = start_date
+    result.end = end_date
+    result.include_start = include_start
+    result.include_end = include_end
     while y <= end_year:
       year = self.year(y)
       for timing in year.timings:
-        if ((timing.started >= start_date)
-            and (timing.started <= end_date)):
+        if (((timing.started > start_date)
+             or
+             (include_start and (timing.started == start_date)))
+            and
+            ((timing.started < end_date)
+             or
+             (include_end and (timing.started == end_date)))
+           ):
           result.add_timing(timing)
       y += 1
 
+    # just for looks
+    if not include_end:
+      result.end -= 1
+    if not include_start:
+      result.start += 1
     return result
-
-
-
-
-
 
 
     
@@ -1633,7 +2170,7 @@ class Tim(Notify):
             t.comment = ' '.join((t.comment, comment))
           else:
             t.comment = comment
-        self.timelog.add_timing(t)
+        self.timelog.add_timing(t, directly_to_file=True)
         # clear the state on disk
         empty_state = self.get_state(read=False)
         empty_state.save()
@@ -1753,6 +2290,8 @@ class Tim(Notify):
     with self.lock:
       state = self.get_state()
       t = state.timing
+      if not t.started:
+        _raise('Can only adjust when a timing is running.')
       t.started -= minutes * 60
       tnow = now()
       t.started = min(t.started, tnow)
@@ -1764,22 +2303,20 @@ class Tim(Notify):
     with self.lock:
       state = self.get_state()
       t = state.timing
+      if not t.started:
+        _raise('Can only adjust when a timing is running.')
       t.started = now() - (minutes * 60)
       t.minutes = minutes
       state.save()
 
 # invocation via commandline #################################################
 
-help_hint = " -- 'tim help' may help."
+help_hint = "\n--> 'tim help' may help."
 
 class TimCmdline:
   def __init__(self, args):
     self.tim = Tim(self.notify)
     self.args = args
-
-    if any([(arg in args)
-            for arg in ('-h', '--help', '-?', '-help', 'help')]):
-      self.usage()
 
     if not args:
       # when called without arguments show status
@@ -1918,23 +2455,32 @@ class TimCmdline:
       _msg('Totals:\n', totals.to_string())
 
   def cmd_log(self, *args):
-    time_period = None
-    start = None
-    end = None
-    if args:
-      _raise("'log' arguments not implemented")
-
-    log = self.tim.get_log()
+    log = self.tim.timelog.run_query_phrase(args)
+    _msg(log.description_str())
+    if not log.timings:
+      _warn('No entries found.')
+      return
     for entry in log.timings:
       _msg(str(entry))
+    _msg(str(log.totals))
 
   def cmd_fix(self, *args):
-    clear = False
+    clear_initial_totals = False
     start_year = None
+    fix_overlaps = None
 
     for arg in args:
       if arg == '--clear':
-        clear = True
+        clear_initial_totals = True
+      elif arg.startswith('--overlaps='):
+        overlap_str = arg[11:]
+        if 'shift' == overlap_str:
+          fix_overlaps = Timelog.FIX_OVERLAPS_SHIFT
+        elif 'drop' == overlap_str:
+          fix_overlaps = Timelog.FIX_OVERLAPS_DROP
+        else:
+          _raise("Unknown --overlaps arg: '", overlap_str, "'")
+          
       elif arg.isdigit():
         if start_year:
           _raise('Multiple start years make no sense.')
@@ -1942,7 +2488,7 @@ class TimCmdline:
       else:
         _raise("Invalid argument: '", arg , "'", help_hint)
 
-    self.tim.timelog.fix(start_year, clear)
+    self.tim.timelog.fix(start_year, clear_initial_totals, fix_overlaps)
 
   def cmd_adjust(self, *args):
     if len(args) < 1:
@@ -1982,7 +2528,68 @@ class TimCmdline:
       _raise("invalid 'adjust' argument: '", arg, "'", help_hint)
     self.cmd_status()
 
+  def cmd_help(self, *args):
+    if not args:
+      lines = []
+      for line in __doc__.split('\n'):
+        if line.startswith('--- ') and line.endswith(' ---'):
+          break
+        lines.append(line)
+      _msg('\n'.join(lines))
+      self.cmd_help('help')
+      return
 
+    if 'all' in args:
+      _msg(__doc__)
+      return
+
+    for arg in args:
+      lines = []
+      found = False
+      match = '--- tim ' + arg + ' ---'
+      usage_part = False
+      usage = []
+      found_usage = False
+      usage_matches = ('  tim ' + arg + ' ', '  tim [' + arg + ']')
+
+      if arg in ('example', 'examples'):
+        match = '--- EXAMPLE ---'
+        usage_matches = ()
+
+      for line in __doc__.split('\n'):
+        if line.startswith('--- ') and line.endswith(' ---'):
+          found = False
+          found_usage = False
+          usage_part = False
+        
+          if line == match:
+            found = True
+            continue
+        else:
+          if line == 'Command line usage:':
+            usage_part = True
+            continue
+
+          if usage_part:
+            if (not line.strip()) or line.startswith('  tim '):
+              found_usage = False
+            if not found_usage:
+              if any([line.startswith(u) for u in usage_matches]):
+                found_usage = True
+            if found_usage:
+              usage.append(line)
+            
+        if found:
+          lines.append(line)
+
+      if not lines:
+        _warn("Don't know anything about '", arg, "'")
+      else:
+        if len(args) > 1:
+          _msg('--- tim ' + arg + ' ---')
+        if usage:
+          _msg('\n'.join(usage), '\n')
+        _msg('\n'.join(lines))
 
 
 if __name__ == "__main__":
@@ -1993,5 +2600,6 @@ if __name__ == "__main__":
   except Error, e:
     _errmsg(str(e))
     print
+    print '-----------------------------------------------------------------------------'
     raise #exit(-1)
 
