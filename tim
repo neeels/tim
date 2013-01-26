@@ -312,8 +312,15 @@ current grand totals on record if necessary (those shown by 'tim totals').
 You can provide the option '--clear' to erase the initial totals of the
 starting year. When calling 'tim fix --clear', the first log handled will
 have its initial totals reset to zero.
+
+If any overlapping timings are found, --overlaps selects the way to fix:
+  --overlaps=shift  -- push later timings towards the future (chain reaction!)
+  --overlaps=drop   -- drop all those hours counted twice (lossy!)
+
+Examples:
   tim fix
-  tim fix 2012  # starts with 2012 and ends with the latest log on record
+  tim fix --overlaps=shift
+  tim fix 2012      # starts with 2012 and ends with the latest log on record
 
 --- tim tickoff ---
 Record hours that you have already billed your money supplier for. If you are
@@ -1459,6 +1466,8 @@ class Timelog(Notify):
       if year.modified:
         year.save()
         year.update_totals()
+    if unfixed:
+      self.msg("(see --overlaps=... option in 'tim help fix' to fix overlaps)")
     return unfixed, fixed
 
   def _fix_totals(self, yearnrs, clear_initial_totals):
@@ -2309,6 +2318,9 @@ class Tim(Notify):
       t.minutes = minutes
       state.save()
 
+  def find_full_name(self, name):
+    return self.timelog.get_totals().find_full_name(name)
+
 # invocation via commandline #################################################
 
 help_hint = "\n--> 'tim help' may help."
@@ -2396,7 +2408,7 @@ class TimCmdline:
     comment = ' '.join(args[1:])
     if not name:
       _raise("Unknown name: '", args[0], "' -- ",
-             "try 'tim new ", args[0], "' first?")
+             "try 'tim new ", args[0], "' first?", help_hint)
     self.tim.start(name, comment)
 
   def cmd_stop(self, *args):
@@ -2536,6 +2548,7 @@ class TimCmdline:
           break
         lines.append(line)
       _msg('\n'.join(lines))
+      _msg('--- tim help ---')
       self.cmd_help('help')
       return
 
@@ -2588,7 +2601,7 @@ class TimCmdline:
         if len(args) > 1:
           _msg('--- tim ' + arg + ' ---')
         if usage:
-          _msg('\n'.join(usage), '\n')
+          _msg('usage:\n', '\n'.join(usage), '\n')
         _msg('\n'.join(lines))
 
 
