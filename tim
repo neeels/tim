@@ -2166,7 +2166,7 @@ class Tim(Notify):
   def new(self, name):
     with self.lock:
       self.timelog.add_name(name)
-    self.msg("Added '", name, "'")
+    self.msg('Added ', name)
 
   def stop(self, comment=None):
     stopped_state = None
@@ -2195,7 +2195,7 @@ class Tim(Notify):
     stop everything, depending on how much time has passed."""
     stale_reason = state.is_stale()
     if stale_reason:
-      self.notify(Notify.STALE, state, stale_reason)
+      self.notify(Notify.STALE, (state, stale_reason))
       if not gently_kill_process(state.pid):
         self.warn('Unable to kill timer process (', pid, ')')
       # assume the user forgot about me, and exit.
@@ -2596,7 +2596,7 @@ class TimCmdline:
           lines.append(line)
 
       if not lines:
-        _warn("Don't know anything about '", arg, "'")
+        _warn("Don't know anything about '", arg, "'", help_hint)
       else:
         if len(args) > 1:
           _msg('--- tim ' + arg + ' ---')
