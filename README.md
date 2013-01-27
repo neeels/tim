@@ -9,6 +9,7 @@ worked hours you have already submitted to your money supplier.
 
 This git repos was started on 2013-01-10, refactoring an older project called
 'ptimer' or 'project-timer' (also by me).
+
 Written in Python.
 
 There is no stable release yet.

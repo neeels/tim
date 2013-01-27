@@ -1,0 +1,48 @@
+Tim Installation Instructions
+=============================
+
+(c) Copyright 2013 by Neels Janosch Hofmeyr <neels@hofmeyr.de> (GPLv3)
+
+This file is part of Tim project timer.
+
+Tim project timer is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+Tim project timer is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Tim project timer.  If not, see <http://www.gnu.org/licenses/>.
+
+
+Installation
+============
+
+Tim is a monolithic Python script. So, when all dependencies are installed,
+simply run the script 'src/tim'. For system wide provision, you may copy the
+src/tim file to a folder that is in the global $PATH, e.g. to /usr/local/bin/.
+
+Make sure that the file src/tim is marked executable. If not, you may do:
+  chmod a+x src/tim
+
+The dependencies of Tim are:
+- standard Python libraries (tested with Python 2.7.3):
+  - daemon
+  - errno
+  - math
+  - os
+  - re
+  - shutil
+  - signal
+  - sys
+  - time
+- ... nothing else, yet.
+
+Tim has not yet been tested on most operating systems. If you have test
+results, bug reports or further installation instructions, please write to:
+  neels@hofmeyr.de
+

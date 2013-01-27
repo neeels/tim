@@ -398,7 +398,6 @@ between each pair of start ... stop commands.
 
 import re, os, errno, time, shutil, sys, signal, math
 import daemon
-import lockfile
 from os.path import join as j
 from time import time as now
 
