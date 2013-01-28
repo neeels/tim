@@ -1,0 +1,11 @@
+# test #
+tim new foo
+tim foo
+tim stop
+tim start foo
+tim new bar
+tim start bar
+tim stop
+tim log
+# expect stdout #
+Added 'foo'.

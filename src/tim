@@ -2165,7 +2165,7 @@ class Tim(Notify):
   def new(self, name):
     with self.lock:
       self.timelog.add_name(name)
-    self.msg('Added ', name)
+    self.msg("Added '", name, "'.")
 
   def stop(self, comment=None):
     stopped_state = None
@@ -2611,7 +2611,7 @@ if __name__ == "__main__":
     TimCmdline(sys.argv[1:])
   except Error, e:
     _errmsg(str(e))
-    print
-    print '-----------------------------------------------------------------------------'
+    ### debug output:
+    sys.stderr.write('----- stacktrace -----\n')
     raise #exit(-1)
 

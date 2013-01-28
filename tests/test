@@ -1,0 +1,401 @@
+#!/usr/bin/env python
+# coding: utf8
+#
+# Tim
+# ===
+# 
+# project timer (GUI + cmdline)
+# 
+# You enter project names and start and stop them.
+# Tim will keep track of how much you worked (and when) and how many of these
+# worked hours you have already submitted to your money supplier.
+# 
+# (c) Copyright 2013 by Neels Janosch Hofmeyr <neels@hofmeyr.de> (GPLv3)
+# 
+# This file is part of Tim project timer.
+# 
+# Tim project timer is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+# 
+# Tim project timer is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+# 
+# You should have received a copy of the GNU General Public License
+# along with Tim project timer.  If not, see <http://www.gnu.org/licenses/>.
+
+r'''Tim project timer, test suite.
+
+Simply run this script to perform all tests.
+
+Tests exist only as shell scripts with expected stdout and stderr output.
+Each test is a single file, starting off with shell commands and ending with
+the expected outputs, each section marked by a specific line of text.
+
+In the tests' shell commands, Tim should be invoked by the 'tim' command. The
+testing code will automatically redirect to the tim script to be tested.
+'''
+
+import os, time, errno, sys, traceback, subprocess, difflib, shutil
+from os.path import join as j
+
+# some of this code repeats code that is in tim already. But I'm consciously
+# not importing those, because I want to test that code. Rather keep separate
+# implementations here for the test suite.
+
+TIMESTR_FORMAT = "%Y-%m-%d %H:%M:%S"
+def time2str(float_time=None, fmt=TIMESTR_FORMAT):
+  if float_time is not None:
+    float_time = float(float_time)
+  return time.strftime(fmt, time.localtime(float_time))
+
+FILENAME_TIMESTAMP_FORMAT = "%Y_%m_%d__%H_%M_%S"
+def filename_timestamp(float_time=None):
+  return time2str(float_time, fmt=FILENAME_TIMESTAMP_FORMAT)
+
+def msgs2str(*msgs):
+  return ''.join([str(m) for m in msgs])
+
+class TestError(Exception):
+  def __init__(self, *msgs):
+    self.msg = msgs2str(*msgs)
+  def __str__(self):
+    return self.__class__.__name__ + ': ' + self.msg
+
+def _raise(*msgs):
+  raise TestError(*msgs)
+
+def write_file(path, contents, mkdirs=True):
+  if mkdirs:
+    dirname = os.path.dirname(path)
+    if not os.path.exists(dirname):
+      os.makedirs(dirname)
+  f = open(path, "w")
+  f.write(contents)
+  f.close()
+
+def append_to_file(path, *contents):
+  f = open(path, "a")
+  for c in contents:
+    f.write(c)
+  f.close()
+
+def read_file(path):
+  try:
+    f = open(path, "r")
+    contents = f.read()
+    f.close()
+    return contents
+  except IOError:
+    return None
+
+def read_file_lines(path):
+  try:
+    f = open(path, "r")
+    contents = f.readlines()
+    f.close()
+    return contents
+  except IOError:
+    return None
+
+def run_shell_script(lines, env=None):
+  stdout, stderr = subprocess.Popen('\n'.join(lines),
+                                    shell=True,
+                                    env=env,
+                                    stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE).communicate()
+  return stdout, stderr
+
+
+def diff_expectations(expected, actual):
+  return '\n'.join(difflib.ndiff(expected, actual))
+
+# TestRunner #################################################################
+
+class TestRunner:
+  SECTION_TEST = '# test #'
+  SECTION_EXPECTED_STDOUT = '# expect stdout #'
+  SECTION_EXPECTED_STDERR = '# expect stderr #'
+  LOG_TIMESTAMP_FORMAT = TIMESTR_FORMAT
+
+  def __init__(self, tests_dir, tim_bin, work_dir_base, log_writer,
+               log_timestamps=False, keep_failed_tests=False,
+               update_expected=False):
+    self.tim_bin = tim_bin
+    self.work_dir_base = work_dir_base
+    self.log_writer = log_writer
+    self.tests_dir = tests_dir
+    self.log_timestamps = log_timestamps
+    self.keep_failed_tests = keep_failed_tests
+    self.update_expected = update_expected
+    self.tests_run = []
+    self.tests_failed = []
+    self.tests_passed = []
+    self.work_dir = None
+    
+  def get_work_dir(self):
+    if self.work_dir is None:
+      self.work_dir = self.tempdir()
+    return self.work_dir
+
+  def log(self, *msgs):
+    if self.log_timestamps:
+      self.log_writer.write(time2str(fmt=TestRunner.LOG_TIMESTAMP_FORMAT))
+      self.log_writer.write(': ')
+    self.log_writer.write(msgs2str(*msgs))
+    self.log_writer.write('\n')
+    self.log_writer.flush()
+
+  def ensure_parent_dir(self, path):
+    parent = os.path.dirname(path)
+    if not os.path.isdir(parent):
+      os.makedirs(parent)
+
+  def new_dir(self, *path_elements):
+    dir_path = j(*path_elements)
+    self.ensure_parent_dir(dir_path)
+    os.mkdir(dir_path)
+    return dir_path
+
+  def new_file(self, path_elements):
+    file_path = j(*path_elements)
+    self.ensure_parent_dir(file_path)
+    f = open(file_path, 'a')
+    f.close()
+    return file_path
+
+  def timestamp_path(self, in_dir=None,
+                     prefix=None, suffix=None,
+                     create_file=False, create_dir=False):
+    assert(not(create_file and create_dir))
+    p = None
+    tries = 3
+    if in_dir is None:
+      in_dir = self.work_dir_base
+
+    success = False
+    while not success:
+      base_name = ''.join((prefix or '', filename_timestamp(), suffix or '',))
+      p = j(in_dir, base_name)
+      try:
+        if create_file:
+          self.new_file(p)
+          success = True
+        elif create_dir:
+          self.new_dir(p)
+          success = True
+        else:
+          success = not os.path.exists(p)
+      except OSError as e:
+        if e.errno == errno.EEXIST:
+          if tries < 1:
+            _raise("Unable to create temporary path in dir '", in_dir, "'")
+          else:
+            tries -= 1
+          time.sleep(1)
+          continue
+        else:
+          raise
+    return p
+    
+  def tempdir(self, in_dir=None, prefix=None, suffix=None):
+    return self.timestamp_path(in_dir=in_dir, create_dir=True, prefix=prefix,
+                               suffix=suffix)
+
+  def get_all_available_test_names(self):
+    files = os.listdir(self.tests_dir)
+    return [name for name in files
+            if (not name.startswith('.'))
+               and os.path.isfile(j(self.tests_dir, name))]
+    
+  def run_many(self, test_names):
+    for name in test_names:
+      self.run(name)
+
+  def get_test_path(self, test_name):
+    return j(self.tests_dir, test_name)
+
+  def get_test(self, test_name):
+    path = self.get_test_path(test_name)
+    lines = [l.strip() for l in read_file_lines( path )]
+    test = []
+    expect_stdout = []
+    expect_stderr = []
+    target = None
+    for line in lines:
+      if TestRunner.SECTION_TEST == line:
+        target = test
+      elif TestRunner.SECTION_EXPECTED_STDOUT == line:
+        target = expect_stdout
+      elif TestRunner.SECTION_EXPECTED_STDERR == line:
+        target = expect_stderr
+      else:
+        if target is not None:
+          target.append(line)
+    return (test, expect_stdout, expect_stderr)
+
+  def get_mangled_test(self, test_name):
+    test, expect_stdout, expect_stderr = self.get_test(test_name)
+
+    for i,line in enumerate(test):
+      if line.startswith('tim '):
+        test[i] = ' '.join((self.tim_bin, line[4:]))
+      elif line == 'tim':
+        test[i] = self.tim_bin
+
+    return test, expect_stdout, expect_stderr
+
+  def update_test(self, test_name, expect_stdout, expect_stderr):
+    path = self.get_test_path(test_name)
+    lines = [l.strip() for l in read_file_lines( path )]
+    rest = []
+    for line in lines:
+      if (TestRunner.SECTION_EXPECTED_STDOUT == line or
+          TestRunner.SECTION_EXPECTED_STDERR == line):
+        break
+      rest.append(line)
+
+    if expect_stdout:
+      rest.append(TestRunner.SECTION_EXPECTED_STDOUT)
+      rest.extend(expect_stdout)
+    if expect_stderr:
+      rest.append(TestRunner.SECTION_EXPECTED_STDERR)
+      rest.extend(expect_stderr)
+
+    write_file(path, '\n'.join(rest))
+
+  def run(self, test_name):
+    self.log('* ', test_name, ' ', '*' * (80 - 2 - 2- len(test_name)))
+    self.tests_run.append(test_name)
+
+    work_dir = self.get_work_dir()
+    test_work = None
+
+    failures = []
+    try:
+      test_work = self.new_dir(work_dir, test_name)
+      env = { 'HOME': test_work }
+
+      test, expect_stdout, expect_stderr = self.get_mangled_test(test_name)
+
+      stdout, stderr = run_shell_script(test, env)
+      stdout = stdout.splitlines()
+      stderr = stderr.splitlines()
+
+      # remove debug stacktrace from stderr
+      for i,line in enumerate(stderr):
+        if line == '----- stacktrace -----':
+          stderr = stderr[:i]
+          break
+
+      if stdout != expect_stdout:
+        failures.append( msgs2str(
+          'stdout mismatches:\n',
+          diff_expectations(expect_stdout, stdout)
+          ) )
+      if stderr != expect_stderr:
+        failures.append( msgs2str(
+          'stderr mismatches:\n',
+          diff_expectations(expect_stderr, stderr)
+          ) )
+    except Exception as e:
+      failures.append(msgs2str('EXCEPTION during test execution:\n',
+                               traceback.format_exc() ))
+
+    if (not (self.keep_failed_tests and failures)
+       ) and os.path.isdir(test_work):
+      shutil.rmtree(test_work)
+
+    if failures:
+      self.tests_failed.append(test_name)
+      for f in failures:
+        self.log('*** FAIL: \'', test_name, '\': ', f)
+
+      if self.update_expected:
+        self.log('*** Updating test \'', test_name, "'")
+        self.update_test(test_name, stdout, stderr)
+
+    else:
+      self.tests_passed.append(test_name)
+      self.log('pass: \'', test_name, "'")
+
+  def clean(self):
+    if self.work_dir is None:
+      return
+    try:
+      os.rmdir(self.work_dir)
+    except OSError as e:
+      if e.errno != errno.ENOTEMPTY:
+        raise
+      self.log('*** Kept tests work: ', self.work_dir)
+      pass
+
+
+  def summary(self):
+    l_run = len(self.tests_run)
+    l_failed = len(self.tests_failed)
+    l_passed = len(self.tests_passed)
+    if l_run != (l_passed + l_failed):
+      self.log('Weird. ', l_run, ' tests run, but failed tests (',
+               l_failed, ') + passed tests (', l_passed, ') = ',
+               l_failed + l_passed)
+    self.log('\n=====\nTests run: ', l_run)
+    if l_passed:
+      self.log('passed: ', l_passed)
+    if l_failed:
+      self.log('FAILED: ', l_failed)
+      self.log('FAILED TESTS: ',
+               ', '.join([str(t) for t in self.tests_failed]))
+
+
+if __name__ == "__main__":
+  # run commandline client.
+
+  from optparse import OptionParser
+
+  p = OptionParser()
+  p.add_option('-s', '--src', dest='tim_bin',
+               help="path to the 'tim' script.",
+               default=j('..', 'src', 'tim'))
+  p.add_option('-w', '--work-dir', dest='work_dir_base',
+               help='path to put temporary files for tests.',
+               default='work')
+  p.add_option('-l', '--log-file', dest='log_file_path',
+               help='file path to append log output to. Logs are written to '
+                   +'stdout by default.',
+               default=None)
+  p.add_option('-t', '--tests-dir', dest='tests_dir',
+               help='dir where tests are located',
+               default=j('.', 'scripts'))
+  p.add_option('-k', '--keep-failed-test-files', dest='keep_failed_tests',
+               help='if true, work dirs for failed tests are not deleted',
+               action='store_true',
+               default=False)
+  p.add_option('-u', '--update-expected', dest='update_expected',
+               help='overwrite expectations with actual output, "dangerous".',
+               action='store_true',
+               default=False)
+
+  options, args = p.parse_args()
+
+  log_writer = None
+  if options.log_file_path:
+    log_writer = open(options.log_file_path, 'a')
+  else:
+    log_writer = sys.stdout
+
+  r = TestRunner(options.tests_dir, options.tim_bin,
+                 options.work_dir_base, log_writer,
+                 keep_failed_tests=options.keep_failed_tests,
+                 update_expected=options.update_expected)
+
+  if not args:
+    args = r.get_all_available_test_names()
+
+  r.run_many(args)
+  r.summary()
+  r.clean()
+
