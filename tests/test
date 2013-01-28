@@ -101,8 +101,9 @@ def read_file_lines(path):
   except IOError:
     return None
 
-def run_shell_script(lines, env=None):
-  stdout, stderr = subprocess.Popen('\n'.join(lines),
+def run_shell_script(script, env=None):
+  print 'RUN', repr(script)
+  stdout, stderr = subprocess.Popen(script,
                                     shell=True,
                                     env=env,
                                     stdout=subprocess.PIPE,
@@ -111,14 +112,16 @@ def run_shell_script(lines, env=None):
 
 
 def diff_expectations(expected, actual):
+  print 'diff_expectations:'
+  print repr(expected)
+  print repr(actual)
   return '\n'.join(difflib.ndiff(expected, actual))
 
 # TestRunner #################################################################
 
 class TestRunner:
-  SECTION_TEST = '# test #'
-  SECTION_EXPECTED_STDOUT = '# expect stdout #'
-  SECTION_EXPECTED_STDERR = '# expect stderr #'
+  OUT_LINE = '#O '
+  ERR_LINE = '#E '
   LOG_TIMESTAMP_FORMAT = TIMESTR_FORMAT
 
   def __init__(self, tests_dir, tim_bin, work_dir_base, log_writer,
@@ -219,36 +222,74 @@ class TestRunner:
     return j(self.tests_dir, test_name)
 
   def get_test(self, test_name):
-    path = self.get_test_path(test_name)
-    lines = [l.strip() for l in read_file_lines( path )]
-    test = []
-    expect_stdout = []
-    expect_stderr = []
-    target = None
-    for line in lines:
-      if TestRunner.SECTION_TEST == line:
-        target = test
-      elif TestRunner.SECTION_EXPECTED_STDOUT == line:
-        target = expect_stdout
-      elif TestRunner.SECTION_EXPECTED_STDERR == line:
-        target = expect_stderr
-      else:
-        if target is not None:
-          target.append(line)
-    return (test, expect_stdout, expect_stderr)
+    return TestRunner.TestReader(test_name, self.get_test_path(test_name)
+                                ).get()
+
+  class TestReader:
+    def __init__(self, name, path):
+      self.name = name
+      self.path = path
+      self.test = []
+
+      self.cmd = []
+      self.cmd_out = []
+      self.cmd_err = []
+
+      self.after = []
+
+      self.read()
+
+    def get(self):
+      return self.test
+
+    def flush(self):
+      if self.cmd is not None:
+        self.test.append(('\n'.join(self.cmd), self.cmd_out, self.cmd_err))
+      self.test.extend(self.after)
+      self.cmd = []
+      self.cmd_out = []
+      self.cmd_err = []
+      self.after = []
+
+    def read(self):
+      lines = [l.strip() for l in read_file_lines( self.path )]
+      for i, line in enumerate(lines):
+        if line.startswith(TestRunner.OUT_LINE):
+          if not self.cmd:
+            _raise('test file has an output line without a prior command ',
+                   "('", self.name, "', line ", i + 1, ')')
+          self.cmd_out.append(line[3:])
+
+        elif line.startswith(TestRunner.ERR_LINE):
+          if not self.cmd:
+            _raise('test file has an output line without a prior command ',
+                   "('", self.name, "', line ", i + 1, ')')
+          self.cmd_err.append(line[3:])
+        else:
+
+          if line.startswith('#') or not line:
+            self.after.append((line, None, None))
+          else:
+            if self.cmd_out or self.cmd_err:
+              self.flush()
+            self.cmd.append(line)
+
+      self.flush()
 
   def get_mangled_test(self, test_name):
-    test, expect_stdout, expect_stderr = self.get_test(test_name)
+    test = self.get_test(test_name)
 
     for i,line in enumerate(test):
-      if line.startswith('tim '):
-        test[i] = ' '.join((self.tim_bin, line[4:]))
+      cmd, out, err = line
+      if cmd.startswith('tim '):
+        test[i] = (' '.join((self.tim_bin, cmd[4:])), out, err)
       elif line == 'tim':
-        test[i] = self.tim_bin
+        test[i] = (self.tim_bin, out, err)
 
-    return test, expect_stdout, expect_stderr
+    return test
 
   def update_test(self, test_name, expect_stdout, expect_stderr):
+    _raise("No.")
     path = self.get_test_path(test_name)
     lines = [l.strip() for l in read_file_lines( path )]
     rest = []
@@ -264,6 +305,7 @@ class TestRunner:
     if expect_stderr:
       rest.append(TestRunner.SECTION_EXPECTED_STDERR)
       rest.extend(expect_stderr)
+    rest.append('')
 
     write_file(path, '\n'.join(rest))
 
@@ -279,31 +321,38 @@ class TestRunner:
       test_work = self.new_dir(work_dir, test_name)
       env = { 'HOME': test_work }
 
-      test, expect_stdout, expect_stderr = self.get_mangled_test(test_name)
+      test = self.get_mangled_test(test_name)
+      print '\n'.join([repr(t) for t in test])
 
-      stdout, stderr = run_shell_script(test, env)
-      stdout = stdout.splitlines()
-      stderr = stderr.splitlines()
+      for i,line in enumerate(test):
+        cmd, expect_stdout, expect_stderr = line
+        if expect_stdout is None:
+          continue
+        stdout, stderr = run_shell_script(cmd, env)
+        stdout = stdout.splitlines()
+        stderr = stderr.splitlines()
 
-      # remove debug stacktrace from stderr
-      for i,line in enumerate(stderr):
-        if line == '----- stacktrace -----':
-          stderr = stderr[:i]
+        # remove debug stacktrace from stderr
+        for i,line in enumerate(stderr):
+          if line == '----- stacktrace -----':
+            stderr = stderr[:i]
+            break
+
+        if stdout != expect_stdout:
+          failures.append((i, msgs2str(
+            'stdout mismatches:\n',
+            diff_expectations(expect_stdout, stdout)
+            ),) )
+        if stderr != expect_stderr:
+          failures.append((i, msgs2str(
+            'stderr mismatches:\n',
+            diff_expectations(expect_stderr, stderr)
+            ),) )
+        if failures:
           break
-
-      if stdout != expect_stdout:
-        failures.append( msgs2str(
-          'stdout mismatches:\n',
-          diff_expectations(expect_stdout, stdout)
-          ) )
-      if stderr != expect_stderr:
-        failures.append( msgs2str(
-          'stderr mismatches:\n',
-          diff_expectations(expect_stderr, stderr)
-          ) )
     except Exception as e:
-      failures.append(msgs2str('EXCEPTION during test execution:\n',
-                               traceback.format_exc() ))
+      failures.append((-1, msgs2str('EXCEPTION during test execution:\n',
+                               traceback.format_exc() )))
 
     if (not (self.keep_failed_tests and failures)
        ) and os.path.isdir(test_work):
@@ -311,11 +360,11 @@ class TestRunner:
 
     if failures:
       self.tests_failed.append(test_name)
-      for f in failures:
-        self.log('*** FAIL: \'', test_name, '\': ', f)
+      for linenr,f in failures:
+        self.log("*** FAIL: '", test_name, "' line ", linenr+1, ': ', f)
 
       if self.update_expected:
-        self.log('*** Updating test \'', test_name, "'")
+        self.log("*** Updating test '", test_name, "'")
         self.update_test(test_name, stdout, stderr)
 
     else:
@@ -375,7 +424,8 @@ if __name__ == "__main__":
                action='store_true',
                default=False)
   p.add_option('-u', '--update-expected', dest='update_expected',
-               help='overwrite expectations with actual output, "dangerous".',
+               help='overwrite expectations with actual output. This is '
+                    + '"dangerous" in that it overwrites the test script file.',
                action='store_true',
                default=False)
 

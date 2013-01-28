@@ -430,7 +430,7 @@ def _errmsg(*msgs):
   sys.stderr.flush()
   
 def _debug(*msgs):
-  _msg('####### ', *msgs)
+  #_msg('####### ', *msgs)
   pass
 
 # generic conversion functions ###############################################
@@ -2215,7 +2215,9 @@ class Tim(Notify):
       return state
 
   def start(self, name_to_start, comment=None):
-    ''' name_to_start: fully resolved project name ('root.bar.baz') '''
+    '''name_to_start: fully resolved project name ('root.bar.baz') '''
+
+    _debug('start ', name_to_start)
     
     with self.lock:
       state = self.get_state()
@@ -2329,12 +2331,15 @@ class TimCmdline:
     self.tim = Tim(self.notify)
     self.args = args
 
+    _debug(repr(args))
+
     if not args:
       # when called without arguments show status
       function = self.cmd_status
     else:
       cmd = args[0]
       func_name = 'cmd_' + cmd
+      _debug(func_name)
 
       function = None
       if hasattr(self, func_name):
@@ -2358,6 +2363,7 @@ class TimCmdline:
     exit(0)
 
   def cmd_new(self, *args):
+    _debug('new ', ' '.join(args))
     if len(args) > 1:
       _raise("'new' takes only one argument: an unknown name.")
     self.tim.new(args[0])
@@ -2401,6 +2407,7 @@ class TimCmdline:
             )
 
   def cmd_start(self, *args):
+    _debug('cmd_start ', ' '.join(args))
     if len(args) < 1:
       _raise("'start' takes a name argument.\n", name_syntax_docstr)
     name = self.tim.find_full_name(args[0])
@@ -2608,6 +2615,7 @@ if __name__ == "__main__":
   # run commandline client.
 
   try:
+    _debug('main')
     TimCmdline(sys.argv[1:])
   except Error, e:
     _errmsg(str(e))
