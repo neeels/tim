@@ -1640,18 +1640,15 @@ class Timelog(Notify):
           if self.snap_to_calendar:
             s = 'around '
           else:
-            if not q.include_start:
-              s = 'after '
-            else:
-              s = ''
+            s = 'at '
           tokens.append(msgs2str('starting ', s, time2str(q.start)))
 
         if q.end:
-          if self.snap_to_calendar:
-            s = 'around '
+          if not q.include_end:
+            s = 'before '
           else:
-            if not q.include_end:
-              s = 'before '
+            if self.snap_to_calendar:
+              s = 'around '
             else:
               s = ''
           tokens.append(msgs2str('ending ', s, time2str(q.end)))
