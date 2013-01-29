@@ -407,13 +407,13 @@ class TestRunner:
         this_line_failed = False
         if not self.match(expect_stdout, stdout):
           failures.append((i, line, msgs2str(
-            'stdout mismatches: --- expect, +++ actual\n',
+            'stdout mismatches:                --- expect   +++ actual\n',
             diff_expectations(expect_stdout, stdout)
             )))
           this_line_failed = True
         if not self.match(expect_stderr, stderr):
           failures.append((i, line, msgs2str(
-            'stderr mismatches: --- expect, +++ actual\n',
+            'stderr mismatches:                --- expect   +++ actual\n',
             diff_expectations(expect_stderr, stderr)
             )))
           this_line_failed = True
@@ -424,7 +424,7 @@ class TestRunner:
             break
       except Exception as e:
         self.log("*** EXCEPTION in '", test_name, "' on line ",
-                 i+1, ': ', line)
+                 i+1, ':\n', line)
         self.log(traceback.format_exc())
 
     if (not (self.keep_failed_tests and failures)
@@ -440,7 +440,7 @@ class TestRunner:
       for i, line, f in failures:
         if i != last_linenr:
           self.log("FAIL: '", test_name, "' on line ",
-                   i+1, ': ', line)
+                   i+1, ':\n', line)
           last_linenr = i
         self.log('*** ', f)
       self.tests_failed.append(test_name)
