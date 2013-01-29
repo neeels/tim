@@ -33,35 +33,64 @@ Testing
   cd tim/tests
   ./test         # run all available tests
   ./test basic   # run only the test script 'scripts/basic'
-  ls scripts/    # list all test names
+  ls scripts/    # list all available test names
 
 
 Writing Tests
 =============
 
-A test script contains of:
-- shell script lines, usually tim commands. 'tim' at a start of a line is
-  replaced with the path to the real tim script, i.e. ../src/tim
-- expected-output lines. These start either with '#O ' or '#E ' (with a
+A test script is not a shell script. It is a plain text file that has shell
+commands alternated with expected output lines. However, since the expected
+output lines start with a '#', it is possible to run a test script in a shell.
+
+A test script contains:
+
+tim new foo
+  shell script lines, usually tim commands. 'tim' at a start of a line is
+  replaced with the path to the real tim script, i.e. '.../src/tim'. Any shell
+  commands are available.
+
+#O output
+#E error
+  expected-output lines. These start either with '#O ' or '#E ' (with a
   space). #O matches stdout and #E matches stderr. Each shell script that
   generates output must be followed by one or more expected-output lines.
-- unchecked shell script commands. If you start a line with a dash, the shell
+
+-tim new foo
+  unchecked shell script commands. If you start a line with a dash, the shell
   script command after the dash is run, but the output is ignored. The command
   may only produce stdout output. Stderr output will cause the test to fail.
-- comment lines. These start with a '#' and are ignored but kept in the file.
-- empty lines. Any blank line is ignored and kept in the file.
-- directives. These are keywords telling the test suite to handle the output
+
+# usual comment
+  comment lines. These start with a '#' and are ignored but kept in the file.
+
+FOO
+  directives. These are keywords telling the test suite to handle the output
   in certain ways. See below.
+
+
+  empty lines. Any blank line is ignored and kept in the file.
 
 It makes most sense to simply write down the shell script lines to be tested
 and then let the test suite fill in the actual output of the test run (see
 Maintaining Tests below). Change the expected output as needed, later.
 
 
+Example
+=======
+
+tim new foo
+#O added foo
+tim new invalid,name
+#E *** Invalid name: 'invalid,name'
+tim log
+#O ...
+
+
 Output Matching
 ===============
 
-Example     What it matches
+Example      What it matches
 ---------------------------
 #O output    stdout = "output"
 #E errmsg    stderr = "errmsg"; Any '#O ' matching is also available for '#E '.
