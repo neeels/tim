@@ -1,0 +1,92 @@
+tim new foo
+#O added foo
+tim new a
+#O added a
+tim new a_b
+#O added a_b
+tim new a,b
+#E *** Invalid name: 'a,b'
+#E ...
+tim new a.b
+#O added a.b
+tim new c.d
+#O added c.d
+tim new "no spaces"
+#E *** Invalid name: 'no spaces'
+#E ...
+tim new e.d
+#O added e.d
+tim new ff.ggg.hh.iiiii.jj
+#O added ff.ggg.hh.iiiii.jj
+tim start foo
+#O started foo
+tim start a
+#O stopped foo (0:01)
+#O started a
+tim start b
+#O stopped a (0:01)
+#O started a.b
+tim start d
+#E *** Multiple matches found for 'd':
+#E - c.d
+#E - e.d
+tim start c.d
+#O stopped a.b (0:01)
+#O started c.d
+tim start e.d
+#O stopped c.d (0:01)
+#O started e.d
+tim start e
+#O stopped e.d (0:01)
+#O started e
+tim start hh
+#O stopped e (0:01)
+#O started ff.ggg.hh
+tim start jj
+#O stopped ff.ggg.hh (0:01)
+#O started ff.ggg.hh.iiiii.jj
+tim start hh.iiiii
+#E ^.*Unknown name: 'hh.iiiii'.*
+#E ...
+tim start iiiii
+#O stopped ff.ggg.hh.iiiii.jj (0:01)
+#O started ff.ggg.hh.iiiii
+tim stop
+#O stopped ff.ggg.hh.iiiii (0:01)
+tim log
+#O 1 weeks, ending now, showing entire weeks.
+#O Monday DATE ... Sunday DATE:
+#O DATE foo 0:01
+#O DATE a 0:01
+#O DATE a.b 0:01
+#O DATE c.d 0:01
+#O DATE e.d 0:01
+#O DATE e 0:01
+#O DATE ff.ggg.hh 0:01
+#O DATE ff.ggg.hh.iiiii.jj 0:01
+#O DATE ff.ggg.hh.iiiii 0:01
+#O      0:01 a
+#O      0:01 a.b
+#O      0:01 c.d
+#O      0:01 e
+#O      0:01 e.d
+#O      0:01 ff.ggg.hh
+#O      0:01 ff.ggg.hh.iiiii
+#O      0:01 ff.ggg.hh.iiiii.jj
+#O      0:01 foo
+#O     =====
+#O      0:09 
+tim totals
+#O Totals:
+#O      0:01 a
+#O      0:01 a.b
+#O      0    a_b
+#O      0:01 c.d
+#O      0:01 e
+#O      0:01 e.d
+#O      0:01 ff.ggg.hh
+#O      0:01 ff.ggg.hh.iiiii
+#O      0:01 ff.ggg.hh.iiiii.jj
+#O      0:01 foo
+#O     =====
+#O      0:09 

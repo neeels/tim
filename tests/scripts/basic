@@ -1,14 +1,37 @@
 tim new foo
-#O Added 'foo'.
-tim start foo
-#O Started 'foo'.
+#O added foo
 tim new foo
-#O Added 'foo'.
+#E *** Already exists: foo
+tim start foo
+#O started foo
+tim start foo
+#O *** Already running: foo
+tim stop
+#O stopped foo (0:01)
 tim foo
-#O Started 'foo'.
-#tim stop
-#tim start foo
-#tim new bar
-#tim start bar
-#tim stop
-#tim log
+#O started foo
+tim foo
+#O *** Already running: foo
+tim new bar
+#O added bar
+tim bar
+#O stopped foo (0:01)
+#O started bar
+tim stop
+#O stopped bar (0:01)
+tim log
+#O 1 weeks, ending now, showing entire weeks.
+#O Monday DATE ... Sunday DATE:
+#O DATE foo 0:01
+#O DATE foo 0:01
+#O DATE bar 0:01
+#O      0:01 bar
+#O      0:02 foo
+#O     =====
+#O      0:03 
+tim totals
+#O Totals:
+#O      0:01 bar
+#O      0:02 foo
+#O     =====
+#O      0:03 

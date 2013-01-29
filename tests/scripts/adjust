@@ -1,0 +1,24 @@
+tim new foo
+#O added foo
+tim new moo
+#O added moo
+tim new goo
+#O added goo
+tim foo
+#O started foo
+tim + 1
+#O Running: foo=1 (since DATE)
+tim moo
+#O stopped foo (1)
+#O started moo
+tim =2.75
+#O Running: moo=2:45 (since DATE)
+tim goo
+#O stopped moo (2:45)
+#O started goo
+tim +3:30
+#O Running: goo=3:30 (since DATE)
+tim -1:1
+#O Running: goo=2:29 (since DATE)
+tim stop
+#O stopped goo (2:29)

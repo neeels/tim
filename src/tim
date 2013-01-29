@@ -411,7 +411,7 @@ class Error(Exception):
   def __init__(self, *msgs):
     self.msg = msgs2str(msgs)
   def __str__(self):
-    return self.__class__.__name__ + ': ' + self.msg
+    return str(self.msg)
 
 def _raise(*msgs):
   raise Error(*msgs)
@@ -423,14 +423,15 @@ def _msg(*msgs):
   print msgs2str(msgs)
 
 def _errmsg(*msgs):
-  sys.stderr.write('tim: ')
+  sys.stderr.write('*** ')
   for msg in msgs:
     sys.stderr.write(msg)
   sys.stderr.write('\n')
   sys.stderr.flush()
   
 def _debug(*msgs):
-  #_msg('####### ', *msgs)
+  _msg('####### ', *msgs)
+  sys.stdout.flush()
   pass
 
 # generic conversion functions ###############################################
@@ -945,7 +946,7 @@ class Totals:
 
   def add_name(self, name):
     if name in self.entries:
-      raise Totals.TotalsErr("Already exists: '", name, "'")
+      raise Totals.TotalsErr('Already exists: ', name)
     self.entries[name] = 0
     self.modified = True
 
@@ -2165,7 +2166,7 @@ class Tim(Notify):
   def new(self, name):
     with self.lock:
       self.timelog.add_name(name)
-    self.msg("Added '", name, "'.")
+    self.msg('added ', name)
 
   def stop(self, comment=None):
     stopped_state = None
@@ -2217,8 +2218,6 @@ class Tim(Notify):
   def start(self, name_to_start, comment=None):
     '''name_to_start: fully resolved project name ('root.bar.baz') '''
 
-    _debug('start ', name_to_start)
-    
     with self.lock:
       state = self.get_state()
 
@@ -2232,6 +2231,8 @@ class Tim(Notify):
       self.stop()
 
     self.notify(Notify.STARTED, name_to_start)
+    sys.stdout.flush()
+    sys.stderr.flush()
 
     daemon_out = open('daemon.log', 'a+')
     with daemon.DaemonContext(
@@ -2331,15 +2332,12 @@ class TimCmdline:
     self.tim = Tim(self.notify)
     self.args = args
 
-    _debug(repr(args))
-
     if not args:
       # when called without arguments show status
       function = self.cmd_status
     else:
       cmd = args[0]
       func_name = 'cmd_' + cmd
-      _debug(func_name)
 
       function = None
       if hasattr(self, func_name):
@@ -2363,7 +2361,6 @@ class TimCmdline:
     exit(0)
 
   def cmd_new(self, *args):
-    _debug('new ', ' '.join(args))
     if len(args) > 1:
       _raise("'new' takes only one argument: an unknown name.")
     self.tim.new(args[0])
@@ -2375,11 +2372,11 @@ class TimCmdline:
     elif key == Notify.STOPPED:
       state = arg
       t = state.timing
-      _msg('Stopped ', t.name,
+      _msg('stopped ', t.name,
            ' (', mins2str(t.minutes), ')')
     elif key == Notify.STARTED:
       name = str(arg)
-      _msg('Started ', name)
+      _msg('started ', name)
     elif key == Notify.MSG:
       msg = arg
       _msg(msg)
@@ -2407,7 +2404,6 @@ class TimCmdline:
             )
 
   def cmd_start(self, *args):
-    _debug('cmd_start ', ' '.join(args))
     if len(args) < 1:
       _raise("'start' takes a name argument.\n", name_syntax_docstr)
     name = self.tim.find_full_name(args[0])
@@ -2615,7 +2611,6 @@ if __name__ == "__main__":
   # run commandline client.
 
   try:
-    _debug('main')
     TimCmdline(sys.argv[1:])
   except Error, e:
     _errmsg(str(e))
