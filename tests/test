@@ -439,10 +439,10 @@ class TestRunner:
       last_linenr = None
       for i, line, f in failures:
         if i != last_linenr:
-          self.log("*** '", test_name, "' FAILED on line ",
+          self.log("FAIL: '", test_name, "' on line ",
                    i+1, ': ', line)
           last_linenr = i
-        self.log('*** FAIL: ', f)
+        self.log('*** ', f)
       self.tests_failed.append(test_name)
       return False
     else:
@@ -474,8 +474,7 @@ class TestRunner:
     if l_passed:
       self.log('passed: ', l_passed)
     if l_failed:
-      self.log('FAILED: ', l_failed)
-      self.log('FAILED TESTS: ',
+      self.log('FAILED: ', l_failed, ' -- ',
                ', '.join([str(t) for t in self.tests_failed]))
 
 
