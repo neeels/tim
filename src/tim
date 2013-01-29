@@ -120,11 +120,8 @@ timer has been running, but it should have. I can correct that by calling
   tim started my_name 9:00
 This is a shortcut for 'tim start my_name' followed by 'tim adjust @9'.
 
-If a timer is already running, you must use 'tim adjust' instead. In above
-example, if my_name is already running, simply say
-  tim adjust @9
-which is equivalent to
-  tim @9
+If a timer is already running, use 'tim adjust' instead.
+To create timings further in the past than a day ago, use 'tim forge'.
 
 --- tim adjust ---
 When a timer is currently running, adjust the recorded time. This always
@@ -349,6 +346,23 @@ billed, your total hours become negative.
 - You can undo tickoffs one by one with:
     tim tickoff --undo
 
+--- tim forge ---
+Create a timing some time in the past. This is the same as editing the logs in
+~/.tim/timelogs. You should call 'tim fix' after you're done forging timings.
+
+Arguments:
+- a name,
+- a start date with time-of-day,
+- and a duration.
+
+For example, to create a timing from noon on 28th of January 2013 until four
+thirty (four and a half hours later):
+
+  tim forge foo 2013-01-28 12:00 +4:30
+
+If a negative amount of hours is supplied, the timing will end with the given
+time-of-day.
+
 --- tim rename ---
 Rename a project while keeping its hours and logs. This may also move projects
 around between groups.
@@ -404,12 +418,12 @@ from time import time as now
 
 # messaging and error handling ###############################################
 
-def msgs2str(msgs):
+def msgs2str(*msgs):
   return ''.join([str(m) for m in msgs])
 
 class Error(Exception):
   def __init__(self, *msgs):
-    self.msg = msgs2str(msgs)
+    self.msg = msgs2str(*msgs)
   def __str__(self):
     return str(self.msg)
 
@@ -417,10 +431,10 @@ def _raise(*msgs):
   raise Error(*msgs)
 
 def _warn(*msgs):
-  print '***', msgs2str(msgs)
+  print '***', msgs2str(*msgs)
 
 def _msg(*msgs):
-  print msgs2str(msgs)
+  print msgs2str(*msgs)
 
 def _errmsg(*msgs):
   sys.stderr.write('*** ')
@@ -433,6 +447,12 @@ def _debug(*msgs):
   _msg('####### ', *msgs)
   sys.stdout.flush()
   pass
+
+def handle_error(e):
+  _errmsg(str(e))
+  ### debug output:
+  sys.stderr.write('----- stacktrace -----\n')
+  sys.stderr.write(traceback.format_exc())
 
 # generic conversion functions ###############################################
 
@@ -599,10 +619,13 @@ def write_file(path, contents, mkdirs=True):
   f.write(contents)
   f.close()
 
-def append_to_file(path, *contents):
+def append_to_file(path, contents, makedirs=True):
+  if makedirs:
+    parent_dir = os.path.dirname(path)
+    if not os.path.isdir(parent_dir):
+      os.makedirs(parent_dir)
   f = open(path, "a")
-  for c in contents:
-    f.write(c)
+  f.write(contents)
   f.close()
 
 def read_file(path):
@@ -743,15 +766,15 @@ class Notify(object):
 
   def msg(self, *msgs):
     if self.notify_func:
-      self.notify_func(Notify.MSG, msgs2str(msgs))
+      self.notify_func(Notify.MSG, msgs2str(*msgs))
 
   def warn(self, *msgs):
     if self.notify_func:
-      self.notify_func(Notify.WARN, msgs2str(msgs))
+      self.notify_func(Notify.WARN, msgs2str(*msgs))
 
   def err(self, *msgs):
     if self.notify_func:
-      self.notify_func(Notify.ERROR, msgs2str(msgs))
+      self.notify_func(Notify.ERROR, msgs2str(*msgs))
 
   ALREADY_RUNNING = 0
   STARTED = 1
@@ -1036,7 +1059,7 @@ class Totals:
         mins_str = '%6s   ' % mins_str
       else:
         mins_str = '%9s' % mins_str
-      return msgs2str((mins_str, ' ', name))
+      return msgs2str(mins_str, ' ', name)
 
     out = []
     grand_total = 0
@@ -1146,7 +1169,8 @@ class Timelog(Notify):
     t.save()
 
   def add_timing(self, timing, directly_to_file=True):
-    timings_file = self.year()
+    assert(timing.started and timing.name)
+    timings_file = self.year(time2year(timing.started))
     timings_file.add_timing(timing, directly_to_file=directly_to_file)
     t = self.get_totals()
     t.add_timing(timing)
@@ -1620,7 +1644,7 @@ class Timelog(Notify):
               s = 'after '
             else:
               s = ''
-          tokens.append(msgs2str(('starting ', s, time2str(q.start),)))
+          tokens.append(msgs2str('starting ', s, time2str(q.start)))
 
         if q.end:
           if self.snap_to_calendar:
@@ -1630,27 +1654,27 @@ class Timelog(Notify):
               s = 'before '
             else:
               s = ''
-          tokens.append(msgs2str(('ending ', s, time2str(q.end),)))
+          tokens.append(msgs2str('ending ', s, time2str(q.end)))
 
         if (q.start is None) and (q.end is None):
           if q.snap_to_calendar:
             s = 'around '
           else:
             s = ''
-          tokens.append(msgs2str(('ending ', s, 'now',)))
+          tokens.append(msgs2str('ending ', s, 'now'))
 
         if self.snap_to_calendar and self.unit:
-          tokens.append(msgs2str(('showing entire ', unit_phrase,)))
+          tokens.append(msgs2str('showing entire ', unit_phrase))
         elif not self.snap_to_calendar:
           tokens.append('exactly')
 
       if tokens:
-        lines.append(msgs2str((', '.join(tokens), '.',)))
+        lines.append(msgs2str(', '.join(tokens), '.'))
 
-      lines.append(msgs2str((
+      lines.append(msgs2str(
            time2weekdaystr(self.start), ' ', time2str(self.start),
            ' ... ',
-           time2weekdaystr(self.end), ' ', time2str(self.end), ':')))
+           time2weekdaystr(self.end), ' ', time2str(self.end), ':'))
 
       return '\n'.join(lines)
 
@@ -1821,8 +1845,11 @@ class Timelog(Notify):
       if self.i >= self.l:
         self.err('Missing ', name, ' argument at end of arguments')
 
-    def next_date_arg(self, **kwargs):
+    def next_date_arg(self):
       self.expect_arg('date')
+      return self.date_arg()
+
+    def date_arg(self):
       return self.parse_date_str(self.token)
 
     def unit_arg(self):
@@ -1843,7 +1870,7 @@ class Timelog(Notify):
         self.err('Too much: ', name)
 
     def err(self, *msgs):
-      raise Timelog.QueryErr(msgs2str(msgs), " ('", self.token,
+      raise Timelog.QueryErr(msgs2str(*msgs), " ('", self.token,
                      "', word ", self.i+1, ')')
       
     def parse(self):
@@ -1893,6 +1920,15 @@ class Timelog(Notify):
           self.err('round not implemented')
         elif 'only'.startswith(self.token):
           self.err('only not implemented')
+        elif (self.amount is not None) or (self.unit is not None):
+          # This gotta be a date. Be a bit magic about this one.
+          date = self.date_arg()
+          if self.start is None:
+            self.start = date
+          elif self.end is None:
+            self.end = date
+          else:
+            self.superfluous('date', True)
         else:
           nr = self.nr_arg()
           if nr is not None:
@@ -2061,8 +2097,8 @@ class TimedDirLock(Notify):
     if (at is not None) and (now() - int(at) > self.valid_for):
       self.msg("Removing stale lock '%s'" % self.lock_path)
       if not gently_kill_process(self.locked_by_pid()):
-        raise TimedDirLock.LockError(msgs2str(
-                'Unable to kill locking process (', pid, ')'))
+        raise TimedDirLock.LockError(
+                'Unable to kill locking process (', pid, ')')
 
       # process is gone. Remove the lock files.
       try:
@@ -2088,9 +2124,9 @@ class TimedDirLock(Notify):
         if e.errno == errno.EEXIST:
           if ((not self.remove_stale_lock())
               and (now() > (at + self.timeout))):
-            raise TimedDirLock.LockError(msgs2str(
+            raise TimedDirLock.LockError(
                 'Timeout when trying to acquire lock \'',
-                self.lock_path, "' from process ", self.locked_by_pid()))
+                self.lock_path, "' from process ", self.locked_by_pid())
           time.sleep(self.sleep_time_in_seconds)
           continue
         else:
@@ -2115,8 +2151,8 @@ class TimedDirLock(Notify):
   def verify_lock(self, strict=False, refresh=True):
     if not self.acquired:
       if strict:
-        raise TimedDirLock.LockError(msgs2str(
-                "Unlock: am not locked to '", self.lock_path, "'"))
+        raise TimedDirLock.LockError(
+                "Unlock: am not locked to '", self.lock_path, "'")
       return False
     check = self.locked_by_id()
     if (not check) or (check != self.own_id()):
@@ -2320,6 +2356,11 @@ class Tim(Notify):
       t.minutes = minutes
       state.save()
 
+  def forge(self, name, started, minutes):
+    t = Timing(name=name, started=started, minutes=minutes)
+    self.timelog.add_timing(t)
+    self.notify(Notify.MSG, msgs2str('forged ', repr(t)))
+
   def find_full_name(self, name):
     return self.timelog.get_totals().find_full_name(name)
 
@@ -2361,9 +2402,10 @@ class TimCmdline:
     exit(0)
 
   def cmd_new(self, *args):
-    if len(args) > 1:
-      _raise("'new' takes only one argument: an unknown name.")
-    self.tim.new(args[0])
+    if len(args) < 1:
+      _raise("'new' needs an argument: an unknown name to create.")
+    for arg in args:
+      self.tim.new(arg)
 
   def notify(self, key, arg):
     if key == Notify.ALREADY_RUNNING:
@@ -2542,6 +2584,23 @@ class TimCmdline:
       _raise("invalid 'adjust' argument: '", arg, "'", help_hint)
     self.cmd_status()
 
+  def cmd_forge(self, *args):
+    if len(args) < 3:
+      _raise("'forge' needs a name, a start date with time and a duration.")
+
+    name = args[0]
+    date = None
+    duration = None
+    for i, arg in enumerate(args[1:]):
+      if arg[0] in '+-':
+        date = ' '.join(args[1:1+i])
+        duration = ''.join(args[1+i:])
+    if date is None:
+      date = ' '.join(args[1:-1])
+      duration = args[-1]
+    self.tim.forge(name, str2time(date), str2mins(duration))
+    _warn("You forged a log entry -- remember to call 'tim fix'!")
+
   def cmd_help(self, *args):
     if not args:
       lines = []
@@ -2613,8 +2672,6 @@ if __name__ == "__main__":
   try:
     TimCmdline(sys.argv[1:])
   except Error, e:
-    _errmsg(str(e))
-    ### debug output:
-    sys.stderr.write('----- stacktrace -----\n')
-    raise #exit(-1)
+    handle_error(e)
+
 

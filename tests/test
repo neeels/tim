@@ -228,6 +228,7 @@ class TestRunner:
       self.path = os.path.abspath(path)
       self.test = []
 
+      self.line = None
       self.cmd = []
       self.cmd_out = []
       self.cmd_err = []
@@ -241,10 +242,10 @@ class TestRunner:
 
     def flush(self):
       if self.cmd:
-        cmd = '\n'.join(self.cmd)
-        self.test.append((cmd, cmd, self.cmd_out, self.cmd_err))
+        self.test.append((self.line, self.cmd, self.cmd_out, self.cmd_err))
       self.test.extend(self.after)
-      self.cmd = []
+      self.line = None
+      self.cmd = None
       self.cmd_out = []
       self.cmd_err = []
       self.after = []
@@ -261,11 +262,19 @@ class TestRunner:
           if not self.cmd:
             _raise('test file has an output line without a prior command ',
                    "('", self.name, "', line ", i + 1, ')')
+          if self.cmd_out is None:
+            _raise('prior command starts with a dash. All output is ignored.',
+                   ' So, no expected output makes sense.',
+                   "('", self.name, "', line ", i + 1, ')')
           self.cmd_out.append(line[3:])
 
         elif line.startswith(TestRunner.ERR_LINE):
           if not self.cmd:
             _raise('test file has an output line without a prior command ',
+                   "('", self.name, "', line ", i + 1, ')')
+          if self.cmd_err is None:
+            _raise('prior command starts with a dash. All output is ignored.',
+                   ' So, no expected output makes sense.',
                    "('", self.name, "', line ", i + 1, ')')
           self.cmd_err.append(line[3:])
         else:
@@ -274,7 +283,11 @@ class TestRunner:
             self.after.append((line, None, None, None))
           else:
             self.flush()
-            self.cmd.append(line)
+            self.line = line
+            self.cmd = line
+            if self.cmd.startswith('-'):
+              self.cmd_out = None
+              self.cmd = self.cmd[1:]
 
       self.flush()
 
@@ -292,6 +305,9 @@ class TestRunner:
     return mangled
 
   def match(self, expect, actual):
+    if expect is None:
+      return True
+
     # remove debug lines
     actual = [a for a in actual if not a.startswith('####### ')]
 
@@ -346,7 +362,9 @@ class TestRunner:
                traceback.format_exc() )
 
 
-    def mangle_output(output):
+    def mangle_output(output, verbatim_dates):
+      if verbatim_dates:
+        return output.splitlines()
       mangled = []
       for l in output.splitlines():
         tokens = []
@@ -360,16 +378,25 @@ class TestRunner:
 
 
     failures = []
+    verbatim_dates = False
     for i,entry in enumerate(test):
       line, cmd, expect_stdout, expect_stderr = entry
       if not cmd:
         continue
+
+      if cmd == 'VERBATIM DATES':
+        verbatim_dates = True
+        continue
+      elif cmd == 'MANGLE DATES':
+        verbatim_dates = False
+        continue
+
       try:
+        stdout, stderr = run_shell_script(cmd, env)
         if expect_stdout is None:
           continue
-        stdout, stderr = run_shell_script(cmd, env)
-        stdout = mangle_output(stdout)
-        stderr = mangle_output(stderr)
+        stdout = mangle_output(stdout, verbatim_dates)
+        stderr = mangle_output(stderr, verbatim_dates)
 
         # remove debug stacktrace from stderr
         for erri,errline in enumerate(stderr):

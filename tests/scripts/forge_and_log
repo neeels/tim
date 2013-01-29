@@ -1,0 +1,138 @@
+VERBATIM DATES
+
+tim forge jan 2012-01-11 12:00 +1:1
+#O forged 2012-01-11 12:00 jan 1:01
+#O *** You forged a log entry -- remember to call 'tim fix'!
+-tim forge mar 2012-03-13 12:00 +:33
+-tim forge feb 2012-02-12 12:00 +2.2
+
+tim fix
+#O ** sorted entries in 2012
+#O Errors fixed: 1
+
+-tim forge jan 2011-01-30 12:00 +11
+tim fix
+#O ** fixing: the initial totals in 2012 are wrong.
+#O  - jan is missing, should be 11
+#O Errors fixed: 1
+
+tim log year 2012
+#O 1 years, starting around 2012-01-01 00:00, showing entire years.
+#O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
+#O 2012-01-11 12:00 jan 1:01
+#O 2012-02-12 12:00 feb 2:12
+#O 2012-03-13 12:00 mar 0:33
+#O      2:12 feb
+#O      1:01 jan
+#O      0:33 mar
+#O     =====
+#O      3:46 
+
+tim log month 2012-01
+#O 1 months, starting around 2012-01-01 00:00, showing entire months.
+#O Sunday 2012-01-01 00:00 ... Tuesday 2012-01-31 23:59:
+#O 2012-01-11 12:00 jan 1:01
+#O      1:01 jan
+#O     =====
+#O      1:01 
+
+tim log month 2012-02
+#O 1 months, starting around 2012-02-01 00:00, showing entire months.
+#O Wednesday 2012-02-01 00:00 ... Wednesday 2012-02-29 23:59:
+#O 2012-02-12 12:00 feb 2:12
+#O      2:12 feb
+#O     =====
+#O      2:12 
+
+tim log month 2012-03
+#O 1 months, starting around 2012-03-01 00:00, showing entire months.
+#O Thursday 2012-03-01 00:00 ... Saturday 2012-03-31 23:59:
+#O 2012-03-13 12:00 mar 0:33
+#O      0:33 mar
+#O     =====
+#O      0:33 
+
+tim log 2 m 2012-02
+#O 2 months, starting around 2012-02-01 00:00, showing entire months.
+#O Wednesday 2012-02-01 00:00 ... Saturday 2012-03-31 23:59:
+#O 2012-02-12 12:00 feb 2:12
+#O 2012-03-13 12:00 mar 0:33
+#O      2:12 feb
+#O      0:33 mar
+#O     =====
+#O      2:45 
+
+tim log 2 months until 2012-03
+#O 2 months, ending around 2012-03-01 00:00, showing entire months.
+#O Wednesday 2012-02-01 00:00 ... Saturday 2012-03-31 23:59:
+#O 2012-02-12 12:00 feb 2:12
+#O 2012-03-13 12:00 mar 0:33
+#O      2:12 feb
+#O      0:33 mar
+#O     =====
+#O      2:45 
+
+# 2 months, ending before 2012-04-01 00:00, showing entire months.
+tim log 2 mo before 2012-04
+#O 2 months, ending before 2012-04-01 00:00, showing entire months.
+#O Wednesday 2012-02-01 00:00 ... Saturday 2012-03-31 23:59:
+#O 2012-02-12 12:00 feb 2:12
+#O 2012-03-13 12:00 mar 0:33
+#O      2:12 feb
+#O      0:33 mar
+#O     =====
+#O      2:45 
+
+# 2 months, ending before 2012-04-25 00:00, showing entire months.
+tim log 2 m before 2012-04-25
+#O 2 months, ending before 2012-04-25 00:00, showing entire months.
+#O Wednesday 2012-02-01 00:00 ... Saturday 2012-03-31 23:59:
+#O 2012-02-12 12:00 feb 2:12
+#O 2012-03-13 12:00 mar 0:33
+#O      2:12 feb
+#O      0:33 mar
+#O     =====
+#O      2:45 
+
+# 2 months, starting at 2012-01-01 00:00, exactly.
+tim log 2 months 2012-01 exactly
+#O 2 months, starting at 2012-01-01 00:00, exactly.
+#O Sunday 2012-01-01 00:00 ... Wednesday 2012-02-29 23:59:
+#O 2012-01-11 12:00 jan 1:01
+#O 2012-02-12 12:00 feb 2:12
+#O      2:12 feb
+#O      1:01 jan
+#O     =====
+#O      3:13 
+
+# 2 months, starting at 2012-01-03 00:00, exactly.
+tim log 2 months 2012-01-3 exactly
+#O 2 months, starting at 2012-01-03 00:00, exactly.
+#O Tuesday 2012-01-03 00:00 ... Friday 2012-03-02 23:59:
+#O 2012-01-11 12:00 jan 1:01
+#O 2012-02-12 12:00 feb 2:12
+#O      2:12 feb
+#O      1:01 jan
+#O     =====
+#O      3:13 
+
+tim log 2 months until 2012-03-3 exactly
+#O 2 months, ending 2012-03-03 00:00, exactly.
+#O Tuesday 2012-01-03 00:00 ... Friday 2012-03-02 23:59:
+#O 2012-01-11 12:00 jan 1:01
+#O 2012-02-12 12:00 feb 2:12
+#O      2:12 feb
+#O      1:01 jan
+#O     =====
+#O      3:13 
+
+tim log 2 months before 2012-04-4 exactly
+#O 2 months, ending before 2012-04-04 00:00, exactly.
+#O Saturday 2012-02-04 00:00 ... Tuesday 2012-04-03 23:59:
+#O 2012-02-12 12:00 feb 2:12
+#O 2012-03-13 12:00 mar 0:33
+#O      2:12 feb
+#O      0:33 mar
+#O     =====
+#O      2:45 
+
