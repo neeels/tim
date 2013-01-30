@@ -15,3 +15,10 @@ tim log year 2012 only jan,mar
 
 tim log year 2012 only jan mar
 #E ^.* Invalid argument: 'mar' .*
+
+tim totals only feb,mar
+#O Totals, selection:
+#O      2:12 feb
+#O      0:33 mar
+#O     =====
+#O      2:45 

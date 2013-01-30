@@ -2499,15 +2499,12 @@ class TimCmdline:
     i = 0
     selected = None
     while i < len(args):
-      if args[i].startswith('-l'):
-        if len(args[i]) > 2:
-          l_arg = args[i][2:]
-        else:
-          i += 1
-          if i >= len(args):
-            _raise("'totals -l' needs an argument")
-          l_arg = args[i]
-        selected = l_arg.split(',')
+      arg = args[i]
+      if 'only'.startswith(arg):
+        i += 1
+        if not (i < len(args)):
+          _raise("expecting a list of names after 'only'")
+        selected = args[i].split(',')
       else:
         _raise("unknown argument for 'totals': '", args[0], "'")
       i += 1
@@ -2528,7 +2525,7 @@ class TimCmdline:
         return
 
     if selected:
-      _msg('Selection:\n', totals.to_string(selected))
+      _msg('Totals, selection:\n', totals.to_string(selected))
     else:
       _msg('Totals:\n', totals.to_string())
 
