@@ -47,19 +47,20 @@ Command line usage:
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
   tim stop [<comment>]
   tim stopped [-]<HH:MM> [<comment>]
-  tim totals [-l <name>[.*][,...]] [-g] \
+  tim totals [only <name>[.*][,...]] [-g] \
              [round [<nr>] [hours|days|weeks|months|years]]
   tim log [<nr>] [hours|days|weeks|months|years] \
           [from|until|before|after <date>] \
           [sum [<nr>] hours|days|weeks|months|years] \
           [round [<nr>] [hours|days|weeks|months|years]] \
-          [-l <name>[.*][,...]] [-g]
+          [only <name>[.*][,...]] [-g]
   tim fix [<start-year>] [--clear] [--overlaps=shift|drop]
-  tim tickoff <hours> [<project-name>] 
+  tim tickoff <hours> [<name>] 
   tim tickoff --undo
-  tim rename <current-project-name> <new-project-name>
-  tim forget <project-name>
-  tim remember [<id>] [--as <project-name>] [--add-to <project-name>]
+  tim forge <name> <start-date-time> <duration>
+  tim rename <name> <new-name>
+  tim forget <name>
+  tim remember [<id>] [--as <name>] [--add-to <name>]
 
 --- tim systray ---
 Launch a systray icon. Tim should appear in your window manager's taskbar. Put
