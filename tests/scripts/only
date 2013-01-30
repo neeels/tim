@@ -1,0 +1,17 @@
+-tim forge jan 2012-01-11 12:00 +1:1
+-tim forge feb 2012-02-12 12:00 +2.2
+-tim forge mar 2012-03-13 12:00 +:33
+VERBATIM DATES
+
+tim log year 2012 only jan,mar
+#O 1 years, starting around 2012-01-01 00:00, showing entire years.
+#O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
+#O 2012-01-11 12:00 jan 1:01
+#O 2012-03-13 12:00 mar 0:33
+#O      1:01 jan
+#O      0:33 mar
+#O     =====
+#O      1:34 
+
+tim log year 2012 only jan mar
+#E ^.* Invalid argument: 'mar' .*

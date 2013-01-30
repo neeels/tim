@@ -1580,7 +1580,7 @@ class Timelog(Notify):
   class Query:
     def __init__(self, unit=None, amount=None, start=None, end=None,
                  snap_to_calendar=None, include_end=None, include_start=None,
-                 rounding=None, sum_unit=None, group=None):
+                 rounding=None, sum_unit=None, group=None, only=None):
       '''unit: a UNIT_* constant.
          amount: a float number.
          start: a start date in unix time (seconds since epoch), inclusive.
@@ -1598,8 +1598,7 @@ class Timelog(Notify):
       self.rounding = rounding
       self.sum_unit = sum_unit
       self.group = group
-
-
+      self.only = only
 
   class QueryResult:
     def __init__(self):
@@ -1844,10 +1843,15 @@ class Timelog(Notify):
 
     def next_date_arg(self):
       self.expect_arg('date')
-      return self.date_arg()
+      return self.date_arg(do_raise=True)
 
-    def date_arg(self):
-      return self.parse_date_str(self.token)
+    def date_arg(self, do_raise=False):
+      try:
+        return self.parse_date_str(self.token)
+      except Error:
+        if do_raise:
+          raise
+        return None
 
     def unit_arg(self):
       for phrase, phrase_unit in Timelog.QueryPhrase.unit_phrases.iteritems():
@@ -1862,13 +1866,16 @@ class Timelog(Notify):
         return None
       return float(minutes) / 60
 
+    def namelist_arg(self):
+      return self.token.split(',')
+
     def superfluous(self, name, val):
       if val is not None:
         self.err('Too much: ', name)
 
     def err(self, *msgs):
-      raise Timelog.QueryErr(msgs2str(*msgs), " ('", self.token,
-                     "', word ", self.i+1, ')')
+      raise Timelog.QueryErr(msgs2str(*msgs), ": '", self.token,
+                     "' (word ", self.i+1, ')')
       
     def parse(self):
       while self.next_arg():
@@ -1913,26 +1920,34 @@ class Timelog(Notify):
           else:
             self.sum_amount = 1
           self.err('sum not implemented')
+        elif 'only'.startswith(self.token):
+          self.superfluous("'only' argument", self.only)
+          self.next_arg()
+          self.only = self.namelist_arg()
         elif 'round'.startswith(self.token):
           self.err('round not implemented')
-        elif 'only'.startswith(self.token):
-          self.err('only not implemented')
-        elif (self.amount is not None) or (self.unit is not None):
-          # This gotta be a date. Be a bit magic about this one.
-          date = self.date_arg()
-          if self.start is None:
-            self.start = date
-          elif self.end is None:
-            self.end = date
-          else:
-            self.superfluous('date', True)
         else:
-          nr = self.nr_arg()
-          if nr is not None:
+          date = None
+          nr = None
+          if (self.amount is not None) or (self.unit is not None) and (
+              self.start == None or self.end == None):
+            # This can be a date. Be a bit magic about this one.
+            date = self.date_arg()
+          if date is None:
+            nr = self.nr_arg()
+
+          if date is not None:
+            if self.start is None:
+              self.start = date
+            elif self.end is None:
+              self.end = date
+            else:
+              self.superfluous('date', True)
+          elif nr is not None:
             self.superfluous('number', self.amount)
             self.amount = nr
           else:
-            self.err('Unknown argument')
+            self.err('Invalid argument')
 
 
   def run_query_phrase(self, phrase_tokens):
@@ -1949,6 +1964,12 @@ class Timelog(Notify):
     include_start = query.include_start
     include_end = query.include_end
     snap_to_calendar = query.snap_to_calendar
+
+    only = None
+    if query.only:
+      only = []
+      for name in query.only:
+        only.extend(self.get_totals().find_full_names(name))
 
     # defaults
     if (start is None) and (end is None):
@@ -2004,7 +2025,8 @@ class Timelog(Notify):
 
     end -= 1e-6
       
-    query_result = self.get_entries(start, end, include_start, include_end)
+    query_result = self.get_entries(start, end, include_start, include_end,
+                                    only)
 
     # enrich result with information about the values queried
     query_result.from_query = query
@@ -2014,7 +2036,8 @@ class Timelog(Notify):
     return query_result
 
 
-  def get_entries(self, start_date, end_date, include_start, include_end):
+  def get_entries(self, start_date, end_date, include_start, include_end,
+                  only=None):
     if start_date > end_date:
       _raise('Start date is later than end date: ',
              time2str(start_date) , ' > ', time2str(end_date), '.')
@@ -2036,6 +2059,8 @@ class Timelog(Notify):
     while y <= end_year:
       year = self.year(y)
       for timing in year.timings:
+        if only and not (timing.name in only):
+          continue
         if (((timing.started > start_date)
              or
              (include_start and (timing.started == start_date)))
