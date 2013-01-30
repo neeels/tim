@@ -123,7 +123,7 @@ class TestRunner:
 
   def __init__(self, tests_dir, tim_bin, work_dir_base, log_writer,
                log_timestamps=False, keep_failed_tests=False,
-               update_expected=False):
+               update_expected=False, verbose=False):
     self.tim_bin = os.path.abspath(tim_bin)
     self.work_dir_base = os.path.abspath(work_dir_base)
     self.tests_dir = os.path.abspath(tests_dir)
@@ -131,6 +131,7 @@ class TestRunner:
     self.log_timestamps = log_timestamps
     self.keep_failed_tests = keep_failed_tests
     self.update_expected = update_expected
+    self.verbose = verbose
     self.tests_run = []
     self.tests_failed = []
     self.tests_passed = []
@@ -393,6 +394,16 @@ class TestRunner:
 
       try:
         stdout, stderr = run_shell_script(cmd, env)
+        if self.verbose:
+          print cmd
+          if stdout:
+            print '--STDOUT--'
+            print stdout
+          if stderr:
+            print '--STDERR--'
+            print stderr
+          if stdout or stderr:
+            print '--'
         if expect_stdout is None:
           continue
         stdout = mangle_output(stdout, verbatim_dates)
@@ -506,6 +517,10 @@ if __name__ == "__main__":
                     + '"dangerous" in that it overwrites the test script file.',
                action='store_true',
                default=False)
+  p.add_option('-v', '--verbose', dest='verbose',
+               help='print full actual test output',
+               action='store_true',
+               default=False)
 
   options, args = p.parse_args()
 
@@ -518,7 +533,8 @@ if __name__ == "__main__":
   r = TestRunner(options.tests_dir, options.tim_bin,
                  options.work_dir_base, log_writer,
                  keep_failed_tests=options.keep_failed_tests,
-                 update_expected=options.update_expected)
+                 update_expected=options.update_expected,
+                 verbose=options.verbose)
 
   if not args:
     if options.update_expected:
