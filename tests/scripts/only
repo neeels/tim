@@ -1,6 +1,9 @@
 -tim forge jan 2012-01-11 12:00 +1:1
 -tim forge feb 2012-02-12 12:00 +2.2
 -tim forge mar 2012-03-13 12:00 +:33
+-tim forge group.apr 2012-04-13 12:00 +:33
+-tim forge group.may 2012-05-13 12:00 +:33
+-tim forge group 2012-06-13 12:00 +:33
 VERBATIM DATES
 
 tim log year 2012 only jan,mar
@@ -13,6 +16,38 @@ tim log year 2012 only jan,mar
 #O     =====
 #O      1:34 
 
+tim log year 2012 only apr,may
+#O 1 years, starting around 2012-01-01 00:00, showing entire years.
+#O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
+#O 2012-04-13 12:00 group.apr 0:33
+#O 2012-05-13 12:00 group.may 0:33
+#O      0:33 group.apr
+#O      0:33 group.may
+#O     =====
+#O      1:06 
+
+tim log year 2012 only group.*
+#O 1 years, starting around 2012-01-01 00:00, showing entire years.
+#O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
+#O 2012-04-13 12:00 group.apr 0:33
+#O 2012-05-13 12:00 group.may 0:33
+#O      0:33 group.apr
+#O      0:33 group.may
+#O     =====
+#O      1:06 
+
+tim log year 2012 only group*
+#O 1 years, starting around 2012-01-01 00:00, showing entire years.
+#O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
+#O 2012-04-13 12:00 group.apr 0:33
+#O 2012-05-13 12:00 group.may 0:33
+#O 2012-06-13 12:00 group 0:33
+#O      0:33 group
+#O      0:33 group.apr
+#O      0:33 group.may
+#O     =====
+#O      1:39 
+
 tim log year 2012 only jan mar
 #E ^.* Invalid argument: 'mar' .*
 
@@ -22,3 +57,4 @@ tim totals only feb,mar
 #O      0:33 mar
 #O     =====
 #O      2:45 
+
