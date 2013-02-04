@@ -42,11 +42,10 @@ Command line usage:
   tim help [all|examples|<command-name>]
   tim [status]
   tim new <project-name>
-  tim [start] <project-name>
-  tim start <project-name> [<comment>]
+  tim [start] <project-name> [-- <comment>]
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
-  tim stop [<comment>]
-  tim stopped [-]<HH:MM> [<comment>]
+  tim stop [-- <comment>]
+  tim stopped [-]<HH:MM> [-- <comment>]
   tim totals [only <name>[.*][,...]] [-g] \
              [round [<nr>] [hours|days|weeks|months|years]]
   tim log [<nr>] [hours|days|weeks|months|years] \
@@ -55,12 +54,13 @@ Command line usage:
           [round [<nr>] [hours|days|weeks|months|years]] \
           [only <name>[.*][,...]] [-g]
   tim fix [<start-year>] [--clear] [--overlaps=shift|drop]
-  tim tickoff <hours> [<name>] 
+  tim tickoff <name> <hours> 
+  tim tickoff <hours> <name> 
   tim tickoff --undo
-  tim forge <name> <start-date-time> <duration>
+  tim forge <name> <start-date-time> <hours> [-- <comment>]
   tim rename <name> <new-name>
   tim forget <name>
-  tim remember [<id>] [--as <name>] [--add-to <name>]
+  tim recall [<id>] [--as <name>] [--add-to <name>]
 
 --- tim systray ---
 Launch a systray icon. Tim should appear in your window manager's taskbar. Put
@@ -293,13 +293,19 @@ Options:
 To fix any errors in the logs (because you edited them?), see 'tim help fix'.
 
 --- tim fix ---
-Run through the logs, summing up everything, to verify and correct the grand
-total shown by 'tim totals', and to verify and correct the initial totals at
-the beginning of each log file.
+'tim fix' is always a good idea, particularly after you have forged timings,
+edited the logs manually or recently recovered from catastrophic hardware
+failure.
 
-This is particularly useful to edit the recorded timings: simply edit the log
-files in ~/.tim/timelog/, then call 'tim fix' to carry the edits through to
-following log files and the current grand total.
+This runs through the logs and fixes by
+- putting timings in their correct year logs,
+- sorting timing logs,
+- verify and correct the grand total shown by 'tim totals',
+- verify and correct the initial totals at the beginning of each log file;
+
+This is particularly useful for editing the recorded timings: simply edit the
+log files in ~/.tim/timelog/, then call 'tim fix' to carry the edits through
+to the proper log files and the current grand total.
 
 Without arguments, all available years are checked and corrected. Each year's
 final totals are carried over to the next year's initial totals. You can ask
@@ -314,6 +320,9 @@ have its initial totals reset to zero.
 If any overlapping timings are found, --overlaps selects the way to fix:
   --overlaps=shift  -- push later timings towards the future (chain reaction!)
   --overlaps=drop   -- drop all those hours counted twice (lossy!)
+  --overlaps=ignore -- don't show any overlap warnings
+The default is to leave overlaps as they are, while warning about their
+existence.
 
 Examples:
   tim fix
@@ -330,22 +339,21 @@ When using 'tickoff' for any given project, you probably want to reach a total
 of zero for that project at regular intervals. If you've worked less than you
 billed, your total hours become negative.
 
-- If no project name is supplied, the tickoff is recorded on the root level of
-  all groups.
-    tim tickoff 32
+You can tickoff on any name, on any grouping levels you choose. Ticking off a
+parent group is useful when no precise per-project tickoffs are needed. When
+you run 'tim totals', your parent group's tickoffs neutralize the hours added
+up from the subprojects, so by ticking off you ideally reach zero on the
+parent group.
+  tim tickoff 6 yoyodyne
+  tim tickoff 30:30 upperstarter.foo
+  tim tickoff 1:30 upperstarter.bar
 
-- You can tickoff a group (yoyodyne). This "neutralizes" the hours of any
-  subgroups in the totals shown by 'tim totals'. You can also tickoff
-  subprojects specifically.
-    tim tickoff 6 yoyodyne
-    tim tickoff 32 upperstarter.foo
+If a group's total is negative, you've already ticked off more hours than you
+have recorded; in other words, you've billed hours in advance. Over time, as
+you record more timings, the negative value will approach positive numbers.
 
-- If a group's total is negative, I've already billed hours I haven't worked
-  yet; over time, as you record more timings, the group or its sub-groups will
-  receive new hours, and the negative value will approach positive numbers.
-
-- You can undo tickoffs one by one with:
-    tim tickoff --undo
+You can undo the latest tickoffs one by one with:
+  tim tickoff --undo
 
 --- tim forge ---
 Create a timing some time in the past. This is the same as editing the logs in
@@ -411,7 +419,7 @@ between each pair of start ... stop commands.
   tim totals               # Above 32 hours are now subtracted from the totals.
 '''
 
-import re, os, errno, time, shutil, sys, signal, math
+import re, os, errno, time, shutil, sys, signal, math, traceback
 import daemon
 from os.path import join as j
 from time import time as now
@@ -482,7 +490,7 @@ def mins2str(float_mins):
 class FormatError(Error):
   pass
 
-def str2mins(str_hours):
+def str2mins(str_hours, raise_on_err=True):
   try: 
     if str_hours.find(':') < 0:
       return int(round(float(str_hours) * 60.0))
@@ -507,7 +515,10 @@ def str2mins(str_hours):
 
     return int(sign * round(fh * 60.0 + fm))
   except Exception, e:
-    raise FormatError("Not a time string: '", str_hours, "'")
+    _debug('str format exception for "', str_hours, '": ', repr(e))
+    if raise_on_err:
+      raise FormatError("Not a time string: '", str_hours, "'")
+    return None
 
 TIMESTR_FORMAT = "%Y-%m-%d %H:%M"
 FILENAME_TIMESTAMP_FORMAT = "%Y_%m_%d_%H_%M_%S"
@@ -618,6 +629,8 @@ def write_file(path, contents, mkdirs=True):
       os.makedirs(dirname)
   f = open(path, "w")
   f.write(contents)
+  f.flush()
+  os.fsync(f.fileno())
   f.close()
 
 def append_to_file(path, contents, makedirs=True):
@@ -726,6 +739,15 @@ class Regex:
 # classes implementing Tim ###################################################
 
 class Notify(object):
+  ALREADY_RUNNING = 0
+  STARTED = 1
+  STOPPED = 2
+  STALE = 3
+  MSG = 4
+  WARN = 5
+  ERROR = 6
+  FIX_NEEDED = 7
+
   def __init__(self, notify_func):
     ''' notify_func(key, arg): function that notifies the user; the
     calling code can/should show these messages to the user in some way.
@@ -777,14 +799,9 @@ class Notify(object):
     if self.notify_func:
       self.notify_func(Notify.ERROR, msgs2str(*msgs))
 
-  ALREADY_RUNNING = 0
-  STARTED = 1
-  STOPPED = 2
-  STALE = 3
-  MSG = 4
-  WARN = 5
-  ERROR = 6
-
+  def notify(self, notify_id, arg):
+    if self.notify_func:
+      self.notify_func(notify_id, arg)
 
 
 class Timing:
@@ -872,6 +889,7 @@ class Timing:
 
 class State:
   STOPPED = 'stopped'
+  STARTING = 'starting'
 
   def __init__(self, state_file_path, read=True):
     self.timing = Timing()
@@ -911,6 +929,9 @@ class State:
     write_file(self.state_file_path, self.serialize())
     return self
 
+  def write_starting(self):
+    write_file(self.state_file_path, State.STARTING)
+
   def clear(self):
     self.pid = None
     self.timing.clear()
@@ -927,6 +948,19 @@ class State:
     statestr = statestr.strip()
     if statestr == State.STOPPED:
       return True # stopped. no data.
+    if statestr == State.STARTING:
+      _debug('waiting...')
+      for n in range(50):
+        time.sleep(0.2)
+        statestr = read_file(self.state_file_path)
+        if State.STARTING != statestr:
+          _debug('...success!')
+          return self.read()
+      _debug('...failure.')
+      # The daemon had enough time to start. Something is wrong. Clear.
+      self.clear()
+      self.save()
+      return True
 
     return self.deserialize(statestr)
 
@@ -980,6 +1014,9 @@ class Totals:
 
   def add_timing(self, timing):
     self._add_timing(timing.name, timing.minutes)
+
+  def remove_timing(self, timing):
+    self._add_timing(timing.name, -timing.minutes)
 
   def get(self, *args):
     return self.entries.get(*args)
@@ -1043,7 +1080,7 @@ class Totals:
     items = []
     seen = set()
 
-    for name, minutes in self.iteritems():
+    for name, minutes in sorted(self.iteritems()):
       if (not selected) or (name in selected):
         items.append((name, minutes))
         seen.add(name)
@@ -1136,6 +1173,7 @@ class Totals:
 class Timelog(Notify):
   FIX_OVERLAPS_SHIFT = 1
   FIX_OVERLAPS_DROP = 2
+  FIX_OVERLAPS_IGNORE = 3
 
   def __init__(self, notify_func, timelog_dir):
     Notify.__init__(self, notify_func)
@@ -1171,12 +1209,33 @@ class Timelog(Notify):
 
   def add_timing(self, timing, directly_to_file=True):
     assert(timing.started and timing.name)
-    timings_file = self.year(time2year(timing.started))
+    yearnr = time2year(timing.started)
+    timings_file = self.get_log_for_year(yearnr)
     timings_file.add_timing(timing, directly_to_file=directly_to_file)
     t = self.get_totals()
     t.add_timing(timing)
     if directly_to_file:
       t.save()
+
+  def remove_timing(self, timing):
+    year = self.get_log_for_year(time2year(timing.started))
+    year.remove_timing(timing)
+    totals = self.get_totals()
+    totals.remove_timing(timing)
+    totals.save()
+
+  def find_last_tickoff(self):
+    yearnrs = self.years_available()
+    found = None
+    for yearnr in reversed(yearnrs):
+      year = self.get_log_for_year(yearnr)
+      for t in reversed(year.timings):
+        if t.started and (t.mins < 0):
+          found = t
+          break
+      if found:
+        break
+    return found
 
 
   class TimingsFile(Notify):
@@ -1314,7 +1373,8 @@ class Timelog(Notify):
   def path_for_year(self, year):
     return j(self.timelog_dir, str(int(year)))
 
-  def year(self, year=None):
+  def get_log_for_year(self, year=None):
+    'return a TimingsFile instance for the given year number.'
     if year is None:
       year = time2year(now())
     year = int(year)
@@ -1327,6 +1387,7 @@ class Timelog(Notify):
     return timings_file
     
   def years_available(self):
+    'returns a list of integers with year numbers for which log files exist.'
     files = os.listdir(self.timelog_dir)
     return [int(name) for name in files
             if name.isdigit() and os.path.isfile(j(self.timelog_dir, name))]
@@ -1383,7 +1444,7 @@ class Timelog(Notify):
     entries_in_wrong_file = {}
 
     for yearnr in yearnrs:
-      year = self.year(yearnr)
+      year = self.get_log_for_year(yearnr)
 
       wrong_here = {}
       for t in year.timings:
@@ -1416,7 +1477,7 @@ class Timelog(Notify):
 
     for yearnr,timings in entries_in_wrong_file.iteritems():
       self.msg('++ adding ', len(timings), ' timings to ', yearnr)
-      year = self.year(yearnr)
+      year = self.get_log_for_year(yearnr)
       for t in timings:
         year.add_timing(t)
         self.msg('    ', repr(t))
@@ -1430,7 +1491,7 @@ class Timelog(Notify):
     fixed = 0
     unfixed = 0
     for yearnr in yearnrs:
-      year = self.year(yearnr)
+      year = self.get_log_for_year(yearnr)
       year.sort()
       if year.modified:
         self.msg('** sorted entries in ', yearnr)
@@ -1442,7 +1503,7 @@ class Timelog(Notify):
     fixed = 0
     unfixed = 0
     for yearnr in yearnrs:
-      year = self.year(yearnr)
+      year = self.get_log_for_year(yearnr)
       prev = None
       for t in year.timings:
         if prev:
@@ -1450,8 +1511,10 @@ class Timelog(Notify):
         else:
           prev_until = None
         was_fixed = False
-        if prev_until > t.started:
+        if (prev_until > t.started) and (
+            fix_overlaps != Timelog.FIX_OVERLAPS_IGNORE):
           t_was = repr(t)
+          verbose = True
           overlap = prev_until - t.started
           if fix_overlaps == Timelog.FIX_OVERLAPS_SHIFT:
             msg = 'shifted '
@@ -1472,19 +1535,23 @@ class Timelog(Notify):
             unfixed += 1
             msg = 'NOT FIXING: '
           
-          if prev_was_fixed:
-            prev_fixed_str = ' after above fix'
-          else:
-            prev_fixed_str = ''
-          self.msg('** ', msg, 'overlap:',
-                   '\n      ', repr(prev),
-                   #        YYYY-MM-DD HH:MM
-                   '\n          (until %5s' % time2str(prev_until, fmt='%H:%M'),
-                      prev_fixed_str, ')'
-                   '\n  and ', t_was,
-                   '\n     (overlap by %5s' % mins2str(float(overlap)/60),')')
-          if was_fixed:
-            self.msg('  --> ', repr(t))
+          if verbose:
+            if prev_was_fixed:
+              prev_fixed_str = ' after above fix'
+            else:
+              prev_fixed_str = ''
+            hours_str = mins2str(float(overlap)/60)
+            if not ':' in hours_str:
+              hours_str += ':00'
+            self.msg('** ', msg, 'overlap:',
+                     '\n      ', repr(prev),
+                     #        YYYY-MM-DD HH:MM
+                     '\n          (until %5s' % time2str(prev_until, fmt='%H:%M'),
+                        prev_fixed_str, ')'
+                     '\n  and ', t_was,
+                     '\n     (overlap by %5s)' % hours_str)
+            if was_fixed:
+              self.msg('  --> ', repr(t))
         prev = t
         prev_was_fixed = was_fixed
 
@@ -1507,15 +1574,15 @@ class Timelog(Notify):
             shouldbe_str = ', but there is no prior record of that name.'
           else:
             shouldbe_str = ', should be ' + mins2str(shouldbe_minutes)
-          self.msg(' - ', name, ' is ', mins2str(minutes), shouldbe_str)
+          self.msg(" - '", name, "' is ", mins2str(minutes), shouldbe_str)
       for name,minutes in sorted(t_shouldbe.iteritems()):
         if not name in t_is:
-          self.msg(' - ', name, ' is missing, should be ', mins2str(minutes))
+          self.msg(" - '", name, "' is missing, should be ", mins2str(minutes))
 
     prev_totals = None
 
     for yearnr in yearnrs:
-      year = self.year(yearnr)
+      year = self.get_log_for_year(yearnr)
       if not year.exists:
         self.warn('No log for ', yearnr)
 
@@ -1581,7 +1648,7 @@ class Timelog(Notify):
   class Query:
     def __init__(self, unit=None, amount=None, start=None, end=None,
                  snap_to_calendar=None, include_end=None, include_start=None,
-                 rounding_unit=None, rounding_amount, sum_unit=None,
+                 rounding_unit=None, rounding_amount=None, sum_unit=None,
                  sum_amount=None, group=None, only=None):
       '''unit: a UNIT_* constant.
          amount: a float number.
@@ -1885,9 +1952,8 @@ class Timelog(Notify):
       return None
 
     def nr_arg(self):
-      try:
-        minutes = str2mins(self.token)
-      except FormatError:
+      minutes = str2mins(self.token, raise_on_err=False)
+      if minutes is None:
         return None
       return float(minutes) / 60
 
@@ -1999,6 +2065,8 @@ class Timelog(Notify):
     include_start = query.include_start
     include_end = query.include_end
     snap_to_calendar = query.snap_to_calendar
+    rounding_amount = query.rounding_amount
+    rounding_unit = query.rounding_unit
 
     only = None
     if query.only:
@@ -2069,8 +2137,9 @@ class Timelog(Notify):
     query_result.amount = amount
     query_result.snap_to_calendar = snap_to_calendar
 
-    if self.rounding_amount:
-      query_result.round(self.rounding_amount, self.rounding_unit)
+    if rounding_amount:
+      query_result.round(rounding_amount, rounding_unit)
+
     return query_result
 
 
@@ -2095,7 +2164,7 @@ class Timelog(Notify):
     result.include_start = include_start
     result.include_end = include_end
     while y <= end_year:
-      year = self.year(y)
+      year = self.get_log_for_year(y)
       for timing in year.timings:
         if only and not (timing.name in only):
           continue
@@ -2174,7 +2243,9 @@ class TimedDirLock(Notify):
       return
     dirname = os.path.dirname(self.lock_path)
     if not os.path.isdir(dirname):
-      os.makedirs(dirname)
+      _raise('failure to lock because of missing parent dir of ',
+             self.lock_path)
+        
     at = now()
     while True:
       try:
@@ -2241,23 +2312,29 @@ class Tim(Notify):
   seconds_per_minute = 60.0
   stale_threshold = 5 * seconds_per_minute
 
-  def __init__(self, notify_func, config_dir=None):
+  def __init__(self, notify_func, base_dir=None):
     Notify.__init__(self, notify_func)
-    self.notify = self.notify_func  # just a shortcut
 
-    if not config_dir:
-      config_dir = j(os.environ['HOME'], '.tim')
-    self.set_config_dir(config_dir)
+    if not base_dir:
+      base_dir = j(os.environ['HOME'], '.tim')
+    base_dir = os.path.abspath(base_dir)
+    self.set_base_dir(base_dir)
 
     self.timelog = Timelog(notify_func, self.timelog_dir)
     self.lock = TimedDirLock(notify_func, self.lock_path)
     #self.lock.remove_stale_lock()
 
-  def set_config_dir(self, config_dir):
-    self.config_dir = config_dir
-    self.state_file_path = j(config_dir, 'running')
-    self.timelog_dir = j(config_dir, 'timelog')
-    self.lock_path = j(config_dir, 'lock')
+  def set_base_dir(self, base_dir):
+    self.base_dir = base_dir
+    if not os.path.isdir(self.base_dir):
+      try:
+        os.makedirs(self.base_dir)
+      except OSError as e:
+        if e.errno != errno.EEXIST:
+          raise
+    self.state_file_path = j(base_dir, 'running')
+    self.timelog_dir = j(base_dir, 'timelog')
+    self.lock_path = j(base_dir, 'lock')
 
   def new(self, name):
     with self.lock:
@@ -2317,14 +2394,15 @@ class Tim(Notify):
     with self.lock:
       state = self.get_state()
 
-    t = state.timing
-    if t.started:
-      if t.name == name_to_start:
-        self.notify(Notify.ALREADY_RUNNING, name_to_start)
-        if t.add_comment(comment):
-          state.save()
-        return True
+      t = state.timing
+      if t.started:
+        if t.name == name_to_start:
+          self.notify(Notify.ALREADY_RUNNING, name_to_start)
+          if t.add_comment(comment):
+            state.save()
+          return True
       self.stop()
+      state.write_starting()
 
     self.notify(Notify.STARTED, name_to_start)
     sys.stdout.flush()
@@ -2374,12 +2452,6 @@ class Tim(Notify):
         _msg('daemon done')
 
 
-  def get_log(self, start_date=None, end_date=None):
-    with self.lock:
-      year = self.timelog.year( time2year(now()) )
-      year.read()
-      return year
-
   def adjust_start(self, new_start):
     with self.lock:
       state = self.get_state()
@@ -2416,13 +2488,29 @@ class Tim(Notify):
       t.minutes = minutes
       state.save()
 
-  def forge(self, name, started, minutes):
-    t = Timing(name=name, started=started, minutes=minutes)
-    self.timelog.add_timing(t)
+  def forge(self, name, started, minutes, comment=None):
+    t = Timing(name=name, started=started, minutes=minutes,
+               comment=comment)
+    with self.lock:
+      self.timelog.add_timing(t)
     self.notify(Notify.MSG, msgs2str('forged ', repr(t)))
+    yearnr = time2year(t.started)
+    self.notify(Notify.FIX_NEEDED, yearnr)
 
   def find_full_name(self, name):
     return self.timelog.get_totals().find_full_name(name)
+
+  def undo_last_tickoff(self):
+    with self.lock:
+      t = self.timelog.find_last_tickoff()
+      if not t:
+        return None
+      self.timelog.remove_timing(t)
+    y = time2year(t.started)
+    if y != time2year(now()):
+      self.notify(Notify.FIX_NEEDED, y)
+    return t
+
 
 # invocation via commandline #################################################
 
@@ -2430,7 +2518,31 @@ help_hint = "\n--> 'tim help' may help."
 
 class TimCmdline:
   def __init__(self, args):
-    self.tim = Tim(self.notify)
+    # read and strip --base option
+    base = None
+    i = 0
+    while i < len(args):
+      arg = args[i]
+      if arg.startswith('--base'):
+        if base is not None:
+          _raise('Only one --base option allowed')
+        rest = arg[6:]
+        if rest:
+          if rest[0] != '=':
+            _raise("Invalid argument: '", arg, "'")
+          base = rest[1:]
+          del args[i]
+          continue
+        else:
+          if i+1 >= len(args):
+            _raise('--base needs an argument.')
+          base = args[i+1]
+          del args[i+1]
+          del args[i]
+          continue
+      i += 1
+
+    self.tim = Tim(self.notify, base_dir=base)
     self.args = args
 
     if not args:
@@ -2479,6 +2591,9 @@ class TimCmdline:
     elif key == Notify.STARTED:
       name = str(arg)
       _msg('started ', name)
+    elif key == Notify.FIX_NEEDED:
+      yearnr = arg
+      _warn('remember to call \'tim fix ', yearnr, '\' at some point.')
     elif key == Notify.MSG:
       msg = arg
       _msg(msg)
@@ -2591,6 +2706,8 @@ class TimCmdline:
           fix_overlaps = Timelog.FIX_OVERLAPS_SHIFT
         elif 'drop' == overlap_str:
           fix_overlaps = Timelog.FIX_OVERLAPS_DROP
+        elif 'ignore' == overlap_str:
+          fix_overlaps = Timelog.FIX_OVERLAPS_IGNORE
         else:
           _raise("Unknown --overlaps arg: '", overlap_str, "'")
           
@@ -2656,7 +2773,45 @@ class TimCmdline:
       date = ' '.join(args[1:-1])
       duration = args[-1]
     self.tim.forge(name, str2time(date), str2mins(duration))
-    _warn("You forged a log entry -- remember to call 'tim fix'!")
+
+  def cmd_tickoff(self, *args):
+    if '--undo' in args:
+      if len(args) != 1:
+        _raise('--undo cannot be combined with other arguments.')
+      t = self.tim.undo_last_tickoff()
+      if t:
+        _msg('Tickoff undone: ', repr(t))
+      else:
+        _warn('No tickoff found.')
+      return
+
+    name = None
+    minutes = None
+
+    for arg in args:
+      if minutes is None:
+        minutes = str2time(arg, raise_on_err=False)
+        if minutes is not None:
+          continue
+      if name is None:
+        name = self.tim.find_full_name(arg)
+        if name is not None:
+          continue
+      _raise("unknown argument: '", arg, "'")
+
+    if not name:
+      _raise('I need a name argument.')
+
+    if not minutes: # catch both None and zero
+      _raise('I need a time argument.')
+
+    if minutes < 0:
+      _raise('negative tickoff not implemented.')
+
+    self.tim.forge(name, now(), -minutes, comment='tickoff')
+
+
+
 
   def cmd_help(self, *args):
     if not args:
