@@ -1,0 +1,148 @@
+VERBATIM DATES
+-tim forge over 2013-01-01 00:00 2
+-tim forge lap 2013-01-01 01:00 2
+
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 01:00 lap 2
+#O      2    lap
+#O      2    over
+#O     =====
+#O      4    
+
+tim fix
+#O ** NOT FIXING: overlap:
+#O       2013-01-01 00:00 over 2
+#O           (until 02:00)
+#O   and 2013-01-01 01:00 lap 2
+#O      (overlap by  1:00)
+#O ^.*
+#O *** Unfixed errors: 1
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 01:00 lap 2
+#O      2    lap
+#O      2    over
+#O     =====
+#O      4    
+
+tim fix --overlaps=ignore
+#O All correct.
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 01:00 lap 2
+#O      2    lap
+#O      2    over
+#O     =====
+#O      4    
+
+tim fix --overlaps=shift
+#O ** shifted overlap:
+#O       2013-01-01 00:00 over 2
+#O           (until 02:00)
+#O   and 2013-01-01 01:00 lap 2
+#O      (overlap by  1:00)
+#O   --> 2013-01-01 02:00 lap 2
+#O Errors fixed: 1
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 02:00 lap 2
+#O      2    lap
+#O      2    over
+#O     =====
+#O      4    
+
+-tim forge lap2 2013-01-01 01:00 2
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 02:00 lap 2
+#O 2013-01-01 01:00 lap2 2
+#O      2    lap
+#O      2    lap2
+#O      2    over
+#O     =====
+#O      6    
+
+tim fix --overlaps=shift
+#O ** sorted entries in 2013
+#O ** shifted overlap:
+#O       2013-01-01 00:00 over 2
+#O           (until 02:00)
+#O   and 2013-01-01 01:00 lap2 2
+#O      (overlap by  1:00)
+#O   --> 2013-01-01 02:00 lap2 2
+#O ** shifted overlap:
+#O       2013-01-01 02:00 lap2 2
+#O           (until 04:00 after above fix)
+#O   and 2013-01-01 02:00 lap 2
+#O      (overlap by  2:00)
+#O   --> 2013-01-01 04:00 lap 2
+#O Errors fixed: 3
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 02:00 lap2 2
+#O 2013-01-01 04:00 lap 2
+#O      2    lap
+#O      2    lap2
+#O      2    over
+#O     =====
+#O      6    
+
+-tim forge lap3 2013-01-01 01:00 2
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 02:00 lap2 2
+#O 2013-01-01 04:00 lap 2
+#O 2013-01-01 01:00 lap3 2
+#O      2    lap
+#O      2    lap2
+#O      2    lap3
+#O      2    over
+#O     =====
+#O      8    
+
+tim fix --overlaps=drop
+#O ** sorted entries in 2013
+#O ** dropped overlap:
+#O       2013-01-01 00:00 over 2
+#O           (until 02:00)
+#O   and 2013-01-01 01:00 lap3 2
+#O      (overlap by  1:00)
+#O   --> 2013-01-01 02:00 lap3 1
+#O ** dropped overlap:
+#O       2013-01-01 02:00 lap3 1
+#O           (until 03:00 after above fix)
+#O   and 2013-01-01 02:00 lap2 2
+#O      (overlap by  1:00)
+#O   --> 2013-01-01 03:00 lap2 1
+#O ** fixing: the grand totals are wrong.
+#O  - 'lap2' is 2, should be 1
+#O  - 'lap3' is 2, should be 1
+#O Errors fixed: 4
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 00:00 over 2
+#O 2013-01-01 02:00 lap3 1
+#O 2013-01-01 03:00 lap2 1
+#O 2013-01-01 04:00 lap 2
+#O      2    lap
+#O      1    lap2
+#O      1    lap3
+#O      2    over
+#O     =====
+#O      6    
