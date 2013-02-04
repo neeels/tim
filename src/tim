@@ -46,13 +46,13 @@ Command line usage:
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
   tim stop [-- <comment>]
   tim stopped [-]<HH:MM> [-- <comment>]
-  tim totals [only <name>[.*][,...]] [-g] \
+  tim totals [only <name>[.*][,...]] [-f] \
              [round [<nr>] [hours|days|weeks|months|years]]
   tim log [<nr>] [hours|days|weeks|months|years] \
           [from|until|before|after <date>] \
           [sum [<nr>] hours|days|weeks|months|years] \
           [round [<nr>] [hours|days|weeks|months|years]] \
-          [only <name>[.*][,...]] [-g]
+          [only <name>[.*][,...]] [-f]
   tim fix [<start-year>] [--clear] [--overlaps=shift|drop]
   tim tickoff <name> <hours> 
   tim tickoff <hours> <name> 
@@ -210,9 +210,9 @@ when all worked hours have been ticked off.
   -l <name>[,<name>[,...]]
     Limit the listing to the given names.
 
-  -g
-    Show per-group timings, do not add them up to the parent groups. Like this
-    you may see ticked off hours as negative timings.
+  -f
+    Flat. Show timings separately for each group, do not add them up to the
+    parent groups. This might help to examine ticked off hours.
 
 To show how the totals came about, see 'tim help log'. To fix the totals if
 they got out of sync (because you edited the timelogs?), see 'tim help fix'.
@@ -286,9 +286,9 @@ Options:
   -l <name>
     Limit the listing to this project (or group).
 
-  -g
-    Show per-group timings, do not add them up to the parent groups. Like this
-    you may see ticked off hours as negative timings.
+  -f
+    Flat. Show timings separately for each group, do not add them up to the
+    parent groups. This might help to examine ticked off hours.
 
 To fix any errors in the logs (because you edited them?), see 'tim help fix'.
 
@@ -422,7 +422,11 @@ between each pair of start ... stop commands.
 import re, os, errno, time, shutil, sys, signal, math, traceback
 import daemon
 from os.path import join as j
-from time import time as now
+
+global_timewarp = 0
+def now():
+  global global_timewarp
+  return time.time() + global_timewarp
 
 
 # messaging and error handling ###############################################
@@ -465,7 +469,7 @@ def handle_error(e):
 
 # generic conversion functions ###############################################
 
-def mins2str(float_mins):
+def mins2str(float_mins, always_show_sign=False):
   sign = 1
   frac = 59.0
   if float_mins < 0:
@@ -480,12 +484,16 @@ def mins2str(float_mins):
   h, m = divmod(minutes, 60)
 
   if m == 0:
-    return str(sign * h)
-  elif sign < 0:
-    # just 'h *= sign' won't work if h == 0.
-    return "-%d:%02d" % (h,m)
+    rstr = str(sign * h)
   else:
-    return "%d:%02d" % (h,m)
+    rstr = '%d:%02d' % (h,m)
+    if sign < 0:
+      # just 'h *= sign' won't work if h == 0.
+      rstr = '-%s' % rstr
+
+  if always_show_sign and rstr[0] != '-':
+    return '+%s' % rstr
+  return rstr
 
 class FormatError(Error):
   pass
@@ -514,8 +522,7 @@ def str2mins(str_hours, raise_on_err=True):
       fm = float(m)
 
     return int(sign * round(fh * 60.0 + fm))
-  except Exception, e:
-    _debug('str format exception for "', str_hours, '": ', repr(e))
+  except ValueError, e:
     if raise_on_err:
       raise FormatError("Not a time string: '", str_hours, "'")
     return None
@@ -1076,7 +1083,7 @@ class Totals:
     self.entries = {}
     self.modified = True
 
-  def to_string(self, selected=None):
+  def to_string(self, flat=False, selected=None):
     items = []
     seen = set()
 
@@ -1091,22 +1098,76 @@ class Totals:
           items.append((name, 0))
           seen.add(name)
 
-    def tostr(name, minutes):
-      mins_str = mins2str(minutes)
+    def total2str(name, minutes, always_show_sign=False):
+      mins_str = mins2str(minutes, always_show_sign)
       if not ':' in mins_str:
-        mins_str = '%6s   ' % mins_str
-      else:
-        mins_str = '%9s' % mins_str
+        mins_str += '   '
+      mins_str = '%9s' % mins_str
       return msgs2str(mins_str, ' ', name)
 
-    out = []
-    grand_total = 0
-    for name, minutes in sorted(items):
-      grand_total += minutes
-      out.append(tostr(name, minutes))
+
+    if flat:
+      out = []
+      grand_total = 0
+      for name, minutes in sorted(items):
+        grand_total += minutes
+        out.append(total2str(name, minutes))
+
+    else:
+      
+      groups = {'^': 0}
+      for name,val in items:
+        path = name.split('.')
+        d = groups
+        for parent in path[:-1]:
+          if not parent in d:
+            d[parent] = { '^': 0 }
+          d = d[parent]
+        last_name = path[-1]
+        assert(last_name not in d)
+        d[last_name] = { '^': val }
+
+      def walk(a_dict, full_name='', last_name=None, indent=0):
+        own_minutes = a_dict['^']
+        minutes_sum = own_minutes
+        sub_out = []
+        # there is a collecting '^' entry, if there are more, len is > 1
+        if len(a_dict) > 1:
+          child_indent = indent
+          if full_name:
+            #sub_out.append('%s %s:' % (' ' * 9, full_name))
+            child_indent += 6
+          for child_name,child_dict in sorted(a_dict.iteritems()):
+            if child_name == '^':
+              continue
+            if full_name:
+              child_full_name = '.'.join((full_name, child_name))
+            else:
+              child_full_name = child_name
+            sub_out_more, sub_sum = walk(child_dict,
+                                         full_name=child_full_name,
+                                         last_name=child_name,
+                                         indent=child_indent)
+            sub_out.extend(sub_out_more)
+            minutes_sum += sub_sum
+
+        if last_name:
+          sub_out.insert(0, '%s%s' % (
+                              ' ' * indent,
+                              total2str(last_name, minutes_sum),
+                            ))
+          if own_minutes and (own_minutes != minutes_sum):
+            sub_out.insert(1, '%s%s' % (
+                                ' ' * (indent + 6),
+                                total2str('^', own_minutes),
+                              ))
+        return sub_out, minutes_sum
+      #end of walk()
+
+      out, grand_total = walk(groups)
 
     out.append('    =====')
-    out.append(tostr('', grand_total))
+    out.append(total2str('', grand_total, True))
     return '\n'.join(out)
 
   def __str__(self):
@@ -1218,11 +1279,15 @@ class Timelog(Notify):
       t.save()
 
   def remove_timing(self, timing):
-    year = self.get_log_for_year(time2year(timing.started))
+    yearnr = time2year(timing.started)
+    year = self.get_log_for_year(yearnr)
     year.remove_timing(timing)
+    year.save()
     totals = self.get_totals()
     totals.remove_timing(timing)
     totals.save()
+    if yearnr != time2year(now()):
+      self.notify(Notify.FIX_NEEDED, yearnr)
 
   def find_last_tickoff(self):
     yearnrs = self.years_available()
@@ -1230,7 +1295,7 @@ class Timelog(Notify):
     for yearnr in reversed(yearnrs):
       year = self.get_log_for_year(yearnr)
       for t in reversed(year.timings):
-        if t.started and (t.mins < 0):
+        if t.started and (t.minutes < 0):
           found = t
           break
       if found:
@@ -1567,17 +1632,22 @@ class Timelog(Notify):
     unfixed = 0
 
     def diff_totals(t_is, t_shouldbe):
+      diff = []
       for name, minutes in sorted(t_is.iteritems()):
         shouldbe_minutes = t_shouldbe.get(name)
-        if shouldbe_minutes != minutes:
+        if (shouldbe_minutes != minutes) and not (
+             (shouldbe_minutes or 0) == (minutes or 0)):
           if shouldbe_minutes is None:
             shouldbe_str = ', but there is no prior record of that name.'
           else:
             shouldbe_str = ', should be ' + mins2str(shouldbe_minutes)
-          self.msg(" - '", name, "' is ", mins2str(minutes), shouldbe_str)
+          diff.append(msgs2str(" - '", name, "' is ", mins2str(minutes),
+                               shouldbe_str))
       for name,minutes in sorted(t_shouldbe.iteritems()):
         if not name in t_is:
-          self.msg(" - '", name, "' is missing, should be ", mins2str(minutes))
+          diff.append(msgs2str(" - '", name, "' is missing, should be ",
+                               mins2str(minutes)))
+      return diff
 
     prev_totals = None
 
@@ -1611,13 +1681,14 @@ class Timelog(Notify):
         else:
           self.msg('Starting off with initial totals of ', yearnr)
         
-      elif prev_totals and (prev_totals != year.initial_totals):
-        self.msg('** fixing: the initial totals in ', yearnr, ' are wrong.')
-        diff_totals(year.initial_totals, prev_totals)
-
-        year.set_initial_totals(prev_totals)
-        changed_initial_totals = True
-        fixed += 1
+      elif prev_totals:
+        diff = diff_totals(year.initial_totals, prev_totals)
+        if diff:
+          self.msg('** fixing: the initial totals in ', yearnr, ' are wrong.')
+          self.msg('\n'.join(diff))
+          year.set_initial_totals(prev_totals)
+          changed_initial_totals = True
+          fixed += 1
 
       if changed_initial_totals:
         year.update_totals()
@@ -1631,9 +1702,10 @@ class Timelog(Notify):
     # finally, update the current grand totals to the last totals seen
     if prev_totals:
       totals = self.get_totals()
-      if totals != prev_totals:
+      diff = diff_totals(totals, prev_totals)
+      if diff:
         self.msg('** fixing: the grand totals are wrong.')
-        diff_totals(totals, prev_totals)
+        self.msg('\n'.join(diff))
         totals.set_to(prev_totals)
         totals.save()
         fixed += 1
@@ -2488,14 +2560,24 @@ class Tim(Notify):
       t.minutes = minutes
       state.save()
 
-  def forge(self, name, started, minutes, comment=None):
+  def _forge(self, name, started, minutes, comment=None):
     t = Timing(name=name, started=started, minutes=minutes,
                comment=comment)
     with self.lock:
       self.timelog.add_timing(t)
+    return t
+
+  def forge(self, name, started, minutes, comment=None):
+    t = self._forge(name, started, minutes, comment)
     self.notify(Notify.MSG, msgs2str('forged ', repr(t)))
     yearnr = time2year(t.started)
     self.notify(Notify.FIX_NEEDED, yearnr)
+
+  def tickoff(self, name, minutes, comment=None):
+    if minutes < 0:
+      _raise('no negative tickoff allowed.')
+    t = self._forge(name, now(), -minutes, comment)
+    self.notify(Notify.MSG, msgs2str('ticked off: ', repr(t)))
 
   def find_full_name(self, name):
     return self.timelog.get_totals().find_full_name(name)
@@ -2519,31 +2601,50 @@ help_hint = "\n--> 'tim help' may help."
 class TimCmdline:
   def __init__(self, args):
     # read and strip --base option
-    base = None
     i = 0
+    gl_args = {}
     while i < len(args):
       arg = args[i]
-      if arg.startswith('--base'):
-        if base is not None:
-          _raise('Only one --base option allowed')
-        rest = arg[6:]
-        if rest:
-          if rest[0] != '=':
-            _raise("Invalid argument: '", arg, "'")
-          base = rest[1:]
-          del args[i]
-          continue
-        else:
-          if i+1 >= len(args):
-            _raise('--base needs an argument.')
-          base = args[i+1]
-          del args[i+1]
-          del args[i]
-          continue
-      i += 1
+      matched = False
+      for gl_arg in ('--base', '--timewarp'):
+        if arg.startswith(gl_arg):
+          if gl_args.get(gl_arg) is not None:
+            _raise('Only one ', gl_arg, ' option allowed')
+          rest = arg[len(gl_arg):]
+          if rest:
+            if rest[0] != '=':
+              _raise("Invalid argument: '", arg, "'")
+            gl_args[gl_arg] = rest[1:]
+            del args[i]
+            matched = True
+            break
+          else:
+            if i+1 >= len(args):
+              _raise('--base needs an argument.')
+            gl_args[gl_arg] = args[i+1]
+            del args[i+1]
+            del args[i]
+            matched = True
+            break
+      if not matched:
+        i += 1
 
-    self.tim = Tim(self.notify, base_dir=base)
+    _debug(args)
+
+    timewarp = gl_args.get('--timewarp')
+    if timewarp:
+      global global_timewarp
+      global_timewarp = int(timewarp)
+      was_now = now()
+      n = now()
+      _debug(n, ' = ', time2str(n))
+      _debug('timewarp = ', global_timewarp)
+      n = now()
+      _debug(n, ' = ', was_now, ' + ', global_timewarp,
+             ' = ', was_now + global_timewarp, ' = ', time2str(n))
+
     self.args = args
+    self.tim = Tim(self.notify, base_dir=gl_args.get('--base'))
 
     if not args:
       # when called without arguments show status
@@ -2651,6 +2752,7 @@ class TimCmdline:
   def cmd_totals(self, *args):
     i = 0
     selected = None
+    flat = False
     while i < len(args):
       arg = args[i]
       if 'only'.startswith(arg):
@@ -2658,6 +2760,8 @@ class TimCmdline:
         if not (i < len(args)):
           _raise("expecting a list of names after 'only'")
         selected = args[i].split(',')
+      elif '-f' == arg:
+        flat = True
       else:
         _raise("unknown argument for 'totals': '", args[0], "'")
       i += 1
@@ -2678,9 +2782,9 @@ class TimCmdline:
         return
 
     if selected:
-      _msg('Totals, selection:\n', totals.to_string(selected))
+      _msg('Totals, selection:\n', totals.to_string(flat, selected))
     else:
-      _msg('Totals:\n', totals.to_string())
+      _msg('Totals:\n', totals.to_string(flat))
 
   def cmd_log(self, *args):
     log = self.tim.timelog.run_query_phrase(args)
@@ -2690,7 +2794,7 @@ class TimCmdline:
       return
     for entry in log.timings:
       _msg(str(entry))
-    _msg(str(log.totals))
+    _msg(log.totals.to_string())
 
   def cmd_fix(self, *args):
     clear_initial_totals = False
@@ -2790,7 +2894,7 @@ class TimCmdline:
 
     for arg in args:
       if minutes is None:
-        minutes = str2time(arg, raise_on_err=False)
+        minutes = str2mins(arg, raise_on_err=False)
         if minutes is not None:
           continue
       if name is None:
@@ -2805,10 +2909,7 @@ class TimCmdline:
     if not minutes: # catch both None and zero
       _raise('I need a time argument.')
 
-    if minutes < 0:
-      _raise('negative tickoff not implemented.')
-
-    self.tim.forge(name, now(), -minutes, comment='tickoff')
+    self.tim.tickoff(name, minutes, comment='tickoff')
 
 
 

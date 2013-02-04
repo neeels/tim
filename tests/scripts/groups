@@ -65,28 +65,42 @@ tim log
 #O DATE ff.ggg.hh 0:01
 #O DATE ff.ggg.hh.iiiii.jj 0:01
 #O DATE ff.ggg.hh.iiiii 0:01
-#O      0:01 a
-#O      0:01 a.b
-#O      0:01 c.d
-#O      0:01 e
-#O      0:01 e.d
-#O      0:01 ff.ggg.hh
-#O      0:01 ff.ggg.hh.iiiii
-#O      0:01 ff.ggg.hh.iiiii.jj
+#O      0:02 a
+#O            0:01 ^
+#O            0:01 b
+#O      0:01 c
+#O            0:01 d
+#O      0:02 e
+#O            0:01 ^
+#O            0:01 d
+#O      0:03 ff
+#O            0:03 ggg
+#O                  0:03 hh
+#O                        0:01 ^
+#O                        0:02 iiiii
+#O                              0:01 ^
+#O                              0:01 jj
 #O      0:01 foo
 #O     =====
-#O      0:09 
+#O     +0:09 
 tim totals
 #O Totals:
-#O      0:01 a
-#O      0:01 a.b
+#O      0:02 a
+#O            0:01 ^
+#O            0:01 b
 #O      0    a_b
-#O      0:01 c.d
-#O      0:01 e
-#O      0:01 e.d
-#O      0:01 ff.ggg.hh
-#O      0:01 ff.ggg.hh.iiiii
-#O      0:01 ff.ggg.hh.iiiii.jj
+#O      0:01 c
+#O            0:01 d
+#O      0:02 e
+#O            0:01 ^
+#O            0:01 d
+#O      0:03 ff
+#O            0:03 ggg
+#O                  0:03 hh
+#O                        0:01 ^
+#O                        0:02 iiiii
+#O                              0:01 ^
+#O                              0:01 jj
 #O      0:01 foo
 #O     =====
-#O      0:09 
+#O     +0:09 

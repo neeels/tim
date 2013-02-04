@@ -10,7 +10,7 @@ tim log year 2013
 #O      2    lap
 #O      2    over
 #O     =====
-#O      4    
+#O     +4    
 
 tim fix
 #O ** NOT FIXING: overlap:
@@ -28,7 +28,7 @@ tim log year 2013
 #O      2    lap
 #O      2    over
 #O     =====
-#O      4    
+#O     +4    
 
 tim fix --overlaps=ignore
 #O All correct.
@@ -40,7 +40,7 @@ tim log year 2013
 #O      2    lap
 #O      2    over
 #O     =====
-#O      4    
+#O     +4    
 
 tim fix --overlaps=shift
 #O ** shifted overlap:
@@ -58,7 +58,7 @@ tim log year 2013
 #O      2    lap
 #O      2    over
 #O     =====
-#O      4    
+#O     +4    
 
 -tim forge lap2 2013-01-01 01:00 2
 tim log year 2013
@@ -71,7 +71,7 @@ tim log year 2013
 #O      2    lap2
 #O      2    over
 #O     =====
-#O      6    
+#O     +6    
 
 tim fix --overlaps=shift
 #O ** sorted entries in 2013
@@ -98,7 +98,7 @@ tim log year 2013
 #O      2    lap2
 #O      2    over
 #O     =====
-#O      6    
+#O     +6    
 
 -tim forge lap3 2013-01-01 01:00 2
 tim log year 2013
@@ -113,7 +113,7 @@ tim log year 2013
 #O      2    lap3
 #O      2    over
 #O     =====
-#O      8    
+#O     +8    
 
 tim fix --overlaps=drop
 #O ** sorted entries in 2013
@@ -145,4 +145,4 @@ tim log year 2013
 #O      1    lap3
 #O      2    over
 #O     =====
-#O      6    
+#O     +6    

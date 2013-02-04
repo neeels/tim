@@ -53,6 +53,17 @@ def time2str(float_time=None, fmt=TIMESTR_FORMAT):
     float_time = float(float_time)
   return time.strftime(fmt, time.localtime(float_time))
 
+def str2time(string):
+  if not string or len(string) < 1:
+    return None
+  if len(string) <= 10:
+    fmt = '%Y-%m-%d'
+  elif len(string) <= 13:
+    fmt = '%Y-%m-%d %H'
+  else:
+    fmt = '%Y-%m-%d %H:%M'
+  return time.mktime( time.strptime(string, fmt) )
+
 FILENAME_TIMESTAMP_FORMAT = "%Y_%m_%d__%H_%M_%S"
 def filename_timestamp(float_time=None):
   return time2str(float_time, fmt=FILENAME_TIMESTAMP_FORMAT)
@@ -298,18 +309,23 @@ class TestRunner:
     test = self.get_test(test_name)
     mangled = []
 
+    timewarp = None
     for line, cmd, out, err in test:
-      if cmd and cmd.startswith('tim '):
-        mangled.append((line,
-                        ' '.join((
-                          self.tim_bin,
-                          '--base', "'" + work_dir + "'",
-                          cmd[4:])),
-                        out, err))
-      elif cmd and (cmd == 'tim'):
-        mangled.append((line, self.tim_bin, out, err))
-      else:
-        mangled.append((line, cmd, out, err))
+      if cmd and cmd.startswith('WARP '):
+        if cmd.startswith('WARP TO DATE '):
+          timewarp = str2time(cmd[13:]) - time.time()
+        elif 'WARP TO PRESENT' == cmd:
+          timewarp = None
+        cmd = None
+      elif cmd and cmd.startswith('tim'):
+        timewarp_arg = ''
+        if timewarp:
+          timewarp_arg = '--timewarp=%d' % timewarp
+        cmd = ' '.join((self.tim_bin,
+                        '--base', "'" + work_dir + "'",
+                        timewarp_arg,
+                        cmd[3:]))
+      mangled.append((line, cmd, out, err))
     return mangled
 
   def match(self, expect, actual):
@@ -344,7 +360,8 @@ class TestRunner:
     for line, cmd, out, err in test:
       result.append(line)
       if out:
-        result.extend([ (TestRunner.OUT_LINE + l) for l in out ])
+        result.extend([ (TestRunner.OUT_LINE + l) for l in out
+                        if not l.startswith('####### ')])
       if err:
         result.extend([ (TestRunner.ERR_LINE + l) for l in err ])
     write_file(path, '\n'.join(result))
