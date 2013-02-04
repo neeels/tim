@@ -76,6 +76,8 @@ def write_file(path, contents, mkdirs=True):
       os.makedirs(dirname)
   f = open(path, "w")
   f.write(contents)
+  f.flush()
+  os.fsync(f.fileno())
   f.close()
 
 def append_to_file(path, *contents):
@@ -292,13 +294,18 @@ class TestRunner:
 
       self.flush()
 
-  def get_mangled_test(self, test_name):
+  def get_mangled_test(self, test_name, work_dir):
     test = self.get_test(test_name)
     mangled = []
 
     for line, cmd, out, err in test:
       if cmd and cmd.startswith('tim '):
-        mangled.append((line, ' '.join((self.tim_bin, cmd[4:])), out, err))
+        mangled.append((line,
+                        ' '.join((
+                          self.tim_bin,
+                          '--base', "'" + work_dir + "'",
+                          cmd[4:])),
+                        out, err))
       elif cmd and (cmd == 'tim'):
         mangled.append((line, self.tim_bin, out, err))
       else:
@@ -356,7 +363,7 @@ class TestRunner:
       test_work = self.new_dir(work_dir, test_name)
       env = { 'HOME': os.path.abspath(test_work) }
 
-      test = self.get_mangled_test(test_name)
+      test = self.get_mangled_test(test_name, test_work)
 
     except Exception as e:
       self.log("EXCEPTION while reading test '", test_name, "':\n",
@@ -393,6 +400,7 @@ class TestRunner:
         continue
 
       try:
+        #print '>', cmd
         stdout, stderr = run_shell_script(cmd, env)
         if self.verbose:
           print cmd
@@ -469,6 +477,8 @@ class TestRunner:
     except OSError as e:
       if e.errno != errno.ENOTEMPTY:
         raise
+      self.log('*** EXCEPTION while cleaning up after tests: ',
+               traceback.format_exc() )
       self.log('*** Kept tests work: ', self.work_dir)
       pass
 
