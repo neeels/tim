@@ -57,7 +57,7 @@ Command line usage:
   tim tickoff <name> <hours> 
   tim tickoff <hours> <name> 
   tim tickoff --undo
-  tim forge <name> <start-date-time> <hours> [-- <comment>]
+  tim forge <start-date> <start-time> <name> <hours> [-- <comment>]
   tim rename <name> <new-name>
   tim forget <name>
   tim recall [<id>] [--as <name>] [--add-to <name>]
@@ -367,7 +367,7 @@ Arguments:
 For example, to create a timing from noon on 28th of January 2013 until four
 thirty (four and a half hours later):
 
-  tim forge foo 2013-01-28 12:00 +4:30
+  tim forge 2013-01-28 12:00 foo 4:30
 
 If a negative amount of hours is supplied, the timing will end with the given
 time-of-day.
@@ -457,9 +457,9 @@ def _errmsg(*msgs):
   sys.stderr.flush()
   
 def _debug(*msgs):
-  _msg('####### ', *msgs)
+  lines = [('####### ' + line) for line in msgs2str(*msgs).split('\n')]
+  print '\n'.join(lines)
   sys.stdout.flush()
-  pass
 
 def handle_error(e):
   _errmsg(str(e))
@@ -586,7 +586,6 @@ def date_beginning_of(unit, date):
     rounded_str += ' 1'
 
   res = str2time( rounded_str, fmt=round_fmt)
-  #_debug('date_beginning_of(', unit, ',', date, ')=', time2str(res))
   return res
   
 def date_end_of(unit, date):
@@ -722,8 +721,8 @@ TIMING_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| *# {0,1}(.*)$)'
 STATE_RE = '^([0-9]+) (.*)$' # a PID, and a log entry (parsed in second step)
 
 name_syntax_docstr = (
-'''A name may only contain letters a-z, A-Z, decimal numbers and the underscore _;
-A name may not start with a number. Names can be arranged in groups, by using
+'''A name may contain letters a-z, A-Z, decimal numbers and the underscore _;
+A name may not start with a number. Names can be arranged in groups by using
 a dot to separate group levels: 'tim new my_group.my_inner_group.my_name'.''')
 
 class Regex:
@@ -893,6 +892,25 @@ class Timing:
   def started_year(self):
     return time2year(self.started)
 
+  @staticmethod
+  def _rename_str(name, from_name, to_name):
+    new_name = None
+    if from_name == name:
+      new_name = to_name
+    else:
+      l = len(from_name)
+      if name.startswith(from_name) and (len(name) > l) and name[l] == '.':
+        new_name = to_name + name[l:]
+    if new_name is not None:
+      Timelog.validate_name(new_name)
+    return new_name
+
+  def rename(self, from_name, to_name):
+    new_name = Timing._rename_str(self.name, from_name, to_name)
+    if new_name is not None:
+      self.name = new_name
+      return True
+    return False
 
 class State:
   STOPPED = 'stopped'
@@ -1002,6 +1020,7 @@ class Totals:
   def copy(self):
     return Totals().set_to(self)
 
+
 #  def add_all(self, other_totals_instance):
 #    for name, minutes in other_totals_instance.iteritems():
 #      self._add_timing(name, minutes)
@@ -1098,76 +1117,137 @@ class Totals:
           items.append((name, 0))
           seen.add(name)
 
-    def total2str(name, minutes, always_show_sign=False):
-      mins_str = mins2str(minutes, always_show_sign)
-      if not ':' in mins_str:
-        mins_str += '   '
-      mins_str = '%9s' % mins_str
-      return msgs2str(mins_str, ' ', name)
-
 
     if flat:
+      def total2str(name, minutes, always_show_sign=False):
+        mins_str = mins2str(minutes, always_show_sign)
+        if not ':' in mins_str:
+          mins_str += '   '
+        mins_str = '%9s' % mins_str
+        return msgs2str(mins_str, ' ', name)
+
       out = []
       grand_total = 0
       for name, minutes in sorted(items):
         grand_total += minutes
         out.append(total2str(name, minutes))
 
+      out.append('    =====')
+      out.append(total2str('', grand_total, True))
+
     else:
+      OWN = '^own'
+      OWNSTR = '^ownstr'
+      SUMSTR = '^sumstr'
+      TIME_LEN = '^time_len'
       
-      groups = {'^': 0}
+      groups = {}
       for name,val in items:
         path = name.split('.')
         d = groups
         for parent in path[:-1]:
           if not parent in d:
-            d[parent] = { '^': 0 }
+            d[parent] = {}
           d = d[parent]
         last_name = path[-1]
         assert(last_name not in d)
-        d[last_name] = { '^': val }
+        val_d = {}
+        if val:
+          val_d[OWN] = val
+          val_d[OWNSTR] = mins2str(val)
+        d[last_name] = val_d
 
-      def walk(a_dict, full_name='', last_name=None, indent=0):
-        own_minutes = a_dict['^']
+      def trickle_sums(a_dict, full_name='', last_name=None):
+        own_minutes = a_dict.get(OWN) or 0
         minutes_sum = own_minutes
-        sub_out = []
-        # there is a collecting '^' entry, if there are more, len is > 1
-        if len(a_dict) > 1:
-          child_indent = indent
+        for child_name, child_dict in a_dict.iteritems():
+          if child_name[0] == '^':
+            continue
           if full_name:
-            #sub_out.append('%s %s:' % (' ' * 9, full_name))
-            child_indent += 6
-          for child_name,child_dict in sorted(a_dict.iteritems()):
-            if child_name == '^':
-              continue
-            if full_name:
-              child_full_name = '.'.join((full_name, child_name))
-            else:
-              child_full_name = child_name
-            sub_out_more, sub_sum = walk(child_dict,
-                                         full_name=child_full_name,
-                                         last_name=child_name,
-                                         indent=child_indent)
-            sub_out.extend(sub_out_more)
-            minutes_sum += sub_sum
+            child_full_name = '.'.join((full_name, child_name))
+          else:
+            child_full_name = child_name
+          sub_sum = trickle_sums(child_dict,
+                                 full_name=child_full_name,
+                                 last_name=child_name)
+          minutes_sum += sub_sum
+        a_dict[SUMSTR] = mins2str(minutes_sum)
+        return minutes_sum
+      #end of trickle_sums()
 
-        if last_name:
-          sub_out.insert(0, '%s%s' % (
-                              ' ' * indent,
-                              total2str(last_name, minutes_sum),
-                            ))
-          if own_minutes and (own_minutes != minutes_sum):
-            sub_out.insert(1, '%s%s' % (
-                                ' ' * (indent + 6),
-                                total2str('^', own_minutes),
-                              ))
-        return sub_out, minutes_sum
-      #end of walk()
+      grand_total = trickle_sums(groups)
 
-      out, grand_total = walk(groups)
+      def compose_print(a_dict, full_name='', last_name=None, indent=0):
+        lines = []
+        own_hours = a_dict.get(OWNSTR) or ''
+        group_sum = a_dict.get(SUMSTR) or '0'
 
-    out.append('    =====')
-    out.append(total2str('', grand_total, True))
+        own_same_as_group = (own_hours == group_sum)
+
+        has_minutes = False
+
+        for child_name, child_dict in a_dict.iteritems():
+          if child_name[0] == '^':
+            continue
+          sum_str = child_dict.get(SUMSTR) or ''
+          if ':' in sum_str:
+            has_minutes = True
+            break
+
+        if own_hours and has_minutes and (':' not in own_hours):
+          own_hours += ':  '
+        max_len = len(own_hours)
+
+        for child_name, child_dict in a_dict.iteritems():
+          if child_name[0] == '^':
+            continue
+          sum_str = child_dict.get(SUMSTR) or ''
+          if has_minutes and (':' not in sum_str):
+            sum_str += ':  '
+            child_dict[SUMSTR] = sum_str
+          max_len = max(max_len, len(sum_str))
+
+        if not last_name:
+          # preparing for printing grand total below
+          if not group_sum.startswith('-'):
+            group_sum = '+' + group_sum
+          max_len = max(max_len, len(group_sum))
+
+        len_fmt = r'%' + str(max_len) + 's'
+
+        if own_hours and (not own_same_as_group):
+          lines.append(msgs2str(' ' * indent, len_fmt % own_hours, ' ^'))
+        
+        child_indent = indent + max_len + 1
+
+        for child_name, child_dict in sorted(a_dict.iteritems()):
+          if child_name[0] == '^':
+            continue
+
+          if full_name:
+            child_full_name = '.'.join((full_name, child_name))
+          else:
+            child_full_name = child_name
+          
+          child_sum = child_dict.get(SUMSTR) or '0'
+
+          lines.append(msgs2str(
+              ' ' * indent,
+              len_fmt % child_sum, ' ', child_name))
+          
+          lines.extend(compose_print(child_dict,
+                                     child_full_name,
+                                     child_name,
+                                     child_indent))
+        if not last_name:
+          total_str = len_fmt % group_sum
+          lines.append(msgs2str(' '*indent, '=' * (len(total_str))))
+          lines.append(msgs2str(' '*indent, total_str))
+        return lines
+      #end of compose_print()
+
+      out = compose_print(groups, indent=1)
+
     return '\n'.join(out)
 
   def __str__(self):
@@ -1189,12 +1269,24 @@ class Totals:
     if (not only_children) and (name in self.entries):
       matches.add(name)
 
+    name_dot = name + '.'
+    dot_name_dot = '.' + name_dot
+    dot_name = '.' + name
+
     for known_name in self.entries:
-      tokens = known_name.split('.')
-      while tokens:
-        if name == tokens[-1]:
-          matches.add('.'.join(tokens))
-        del tokens[-1]
+      if known_name.startswith(name_dot):
+        matches.add(name)
+      elif known_name.endswith(dot_name):
+        matches.add(known_name)
+      else:
+        start = 0
+        l = len(known_name)
+        while start < l:
+          pos = known_name.find(dot_name_dot, start)
+          if pos < 0:
+            break
+          matches.add(known_name[:pos + len(dot_name)])
+          start = pos + len(dot_name)
 
     if with_children:
       children = set()
@@ -1220,6 +1312,12 @@ class Totals:
     else:
       return None
 
+  def name_exists(self, name):
+    matches = self.find_full_names(name)
+    if name in matches:
+      return True
+    return False
+
   def find_all_children(self, name):
     Timelog.validate_name(name)
     children = []
@@ -1228,6 +1326,24 @@ class Totals:
         children.append(known_name)
     return children
 
+  def rename(self, from_name, to_name, ensure_presence=False):
+    assert(to_name not in self.entries)
+    modified = False
+    keys = self.entries.keys()
+    for k in keys:
+      new_k = Timing._rename_str(k, from_name, to_name)
+      if new_k:
+        self.entries[new_k] = self.entries[k]
+        del self.entries[k]
+        modified = True
+    if modified and ensure_presence:
+      # if this moved a child away, the parent should still exist.
+      parent_name = '.'.join(from_name.split('.')[:-1])
+      if parent_name and not self.name_exists(parent_name):
+        self.entries[parent_name] = 0
+    if modified:
+      self.modified = True
+    return modified
 
 
 
@@ -1271,7 +1387,7 @@ class Timelog(Notify):
   def add_timing(self, timing, directly_to_file=True):
     assert(timing.started and timing.name)
     yearnr = time2year(timing.started)
-    timings_file = self.get_log_for_year(yearnr)
+    timings_file = self.get_timings_for_year(yearnr)
     timings_file.add_timing(timing, directly_to_file=directly_to_file)
     t = self.get_totals()
     t.add_timing(timing)
@@ -1280,7 +1396,7 @@ class Timelog(Notify):
 
   def remove_timing(self, timing):
     yearnr = time2year(timing.started)
-    year = self.get_log_for_year(yearnr)
+    year = self.get_timings_for_year(yearnr)
     year.remove_timing(timing)
     year.save()
     totals = self.get_totals()
@@ -1290,10 +1406,10 @@ class Timelog(Notify):
       self.notify(Notify.FIX_NEEDED, yearnr)
 
   def find_last_tickoff(self):
-    yearnrs = self.years_available()
+    yearnrs = self.get_available_years()
     found = None
     for yearnr in reversed(yearnrs):
-      year = self.get_log_for_year(yearnr)
+      year = self.get_timings_for_year(yearnr)
       for t in reversed(year.timings):
         if t.started and (t.minutes < 0):
           found = t
@@ -1301,6 +1417,39 @@ class Timelog(Notify):
       if found:
         break
     return found
+    
+  def rename(self, from_name, to_name):
+    totals = self.get_totals()
+
+    if totals.name_exists(to_name):
+      _raise("cannot rename, target name already exists: '", to_name, "'")
+
+    if not totals.name_exists(from_name):
+      from_full_names = totals.find_full_names(from_name)
+      if not from_full_names:
+        _raise("I don't know the name '", from_name, "'")
+      _raise('you must supply a full name to rename. How about:',
+             ''.join(['\ntim rename "%s" "%s"' % (f, to_name)
+                      for f in from_full_names]))
+
+    Timelog.validate_name(to_name)
+
+    assert(from_name != to_name)
+
+    # alright.
+
+    from_dot = from_name + '.'
+
+    available_years = sorted(self.get_available_years())
+    for yearnr in available_years:
+      tf = self.get_timings_for_year(yearnr)
+      tf.rename(from_name, to_name)
+      if tf.modified:
+        tf.save()
+
+    totals.rename(from_name, to_name, ensure_presence=True)
+    if totals.modified:
+      totals.save()
 
 
   class TimingsFile(Notify):
@@ -1397,7 +1546,6 @@ class Timelog(Notify):
       assert(isinstance(timing, Timing))
       if timing.minutes == 0:
         return
-      #_debug('Adding ', repr(timing))
       self.timings.append(timing)
       self.update_totals()
       if directly_to_file:
@@ -1416,7 +1564,6 @@ class Timelog(Notify):
         _raise('Cannot remove timing: multiple matches found in ',
                self.path, ' for ', repr(timing))
       match_idx = matches[0]
-      #_debug('Removing ', repr(self.timings[match_idx]))
       del self.timings[match_idx]
       self.modified = True
 
@@ -1435,10 +1582,19 @@ class Timelog(Notify):
         self.timings = new
         self.modified = True
 
+    def rename(self, from_name, to_name):
+      for t in self.timings:
+        if t.rename(from_name, to_name):
+          self.modified = True
+      if self.initial_totals:
+        if self.initial_totals.rename(from_name, to_name):
+          self.modified = True
+      self.update_totals()
+
   def path_for_year(self, year):
     return j(self.timelog_dir, str(int(year)))
 
-  def get_log_for_year(self, year=None):
+  def get_timings_for_year(self, year=None):
     'return a TimingsFile instance for the given year number.'
     if year is None:
       year = time2year(now())
@@ -1451,7 +1607,7 @@ class Timelog(Notify):
       timings_file.read()
     return timings_file
     
-  def years_available(self):
+  def get_available_years(self):
     'returns a list of integers with year numbers for which log files exist.'
     files = os.listdir(self.timelog_dir)
     return [int(name) for name in files
@@ -1465,7 +1621,7 @@ class Timelog(Notify):
     if start_year:
       start_year = int(start_year)
 
-    years_available = self.years_available()
+    years_available = self.get_available_years()
     if start_year is None:
       start_year = min(years_available)
     elif start_year not in years_available:
@@ -1509,7 +1665,7 @@ class Timelog(Notify):
     entries_in_wrong_file = {}
 
     for yearnr in yearnrs:
-      year = self.get_log_for_year(yearnr)
+      year = self.get_timings_for_year(yearnr)
 
       wrong_here = {}
       for t in year.timings:
@@ -1542,7 +1698,7 @@ class Timelog(Notify):
 
     for yearnr,timings in entries_in_wrong_file.iteritems():
       self.msg('++ adding ', len(timings), ' timings to ', yearnr)
-      year = self.get_log_for_year(yearnr)
+      year = self.get_timings_for_year(yearnr)
       for t in timings:
         year.add_timing(t)
         self.msg('    ', repr(t))
@@ -1556,7 +1712,7 @@ class Timelog(Notify):
     fixed = 0
     unfixed = 0
     for yearnr in yearnrs:
-      year = self.get_log_for_year(yearnr)
+      year = self.get_timings_for_year(yearnr)
       year.sort()
       if year.modified:
         self.msg('** sorted entries in ', yearnr)
@@ -1568,7 +1724,7 @@ class Timelog(Notify):
     fixed = 0
     unfixed = 0
     for yearnr in yearnrs:
-      year = self.get_log_for_year(yearnr)
+      year = self.get_timings_for_year(yearnr)
       prev = None
       for t in year.timings:
         if prev:
@@ -1652,7 +1808,7 @@ class Timelog(Notify):
     prev_totals = None
 
     for yearnr in yearnrs:
-      year = self.get_log_for_year(yearnr)
+      year = self.get_timings_for_year(yearnr)
       if not year.exists:
         self.warn('No log for ', yearnr)
 
@@ -1696,9 +1852,6 @@ class Timelog(Notify):
 
       prev_totals = year.totals
       
-          
-
-
     # finally, update the current grand totals to the last totals seen
     if prev_totals:
       totals = self.get_totals()
@@ -2161,8 +2314,6 @@ class Timelog(Notify):
     if include_end is None:
       include_end = True
 
-    #_debug(time2str(start), '-', time2str(end), ' ', amount, ' ', unit, ' ', snap_to_calendar)
-
     # validate: exactly two values of start, end, amount must be supplied.
     supplied_count = 0
     for b in (start, end, amount):
@@ -2236,7 +2387,7 @@ class Timelog(Notify):
     result.include_start = include_start
     result.include_end = include_end
     while y <= end_year:
-      year = self.get_log_for_year(y)
+      year = self.get_timings_for_year(y)
       for timing in year.timings:
         if only and not (timing.name in only):
           continue
@@ -2399,11 +2550,11 @@ class Tim(Notify):
   def set_base_dir(self, base_dir):
     self.base_dir = base_dir
     if not os.path.isdir(self.base_dir):
-      try:
+      #try:
         os.makedirs(self.base_dir)
-      except OSError as e:
-        if e.errno != errno.EEXIST:
-          raise
+      #except OSError as e:
+      #  if e.errno != errno.EEXIST:
+      #   raise
     self.state_file_path = j(base_dir, 'running')
     self.timelog_dir = j(base_dir, 'timelog')
     self.lock_path = j(base_dir, 'lock')
@@ -2461,7 +2612,7 @@ class Tim(Notify):
       return state
 
   def start(self, name_to_start, comment=None):
-    '''name_to_start: fully resolved project name ('root.bar.baz') '''
+    '''name_to_start: full project name ('root.bar.baz') '''
 
     with self.lock:
       state = self.get_state()
@@ -2481,6 +2632,9 @@ class Tim(Notify):
     sys.stderr.flush()
 
     daemon_out = open('daemon.log', 'a+')
+    daemon_out.write(msgs2str(time2str(now()),' -- launching daemon\n'))
+    daemon_out.flush()
+
     with daemon.DaemonContext(
              stdout=daemon_out, stderr=daemon_out,
            ):
@@ -2488,6 +2642,9 @@ class Tim(Notify):
         my_pid = os.getpid()
 
         original_starting_time = str2time( time2str( now() ) )
+        daemon_out.write(msgs2str(time2str(original_starting_time),
+                         ' -- daemon started: ', my_pid, '\n'))
+        daemon_out.flush()
 
         state = self.get_state(read=False)
         state.set_values(
@@ -2593,6 +2750,9 @@ class Tim(Notify):
       self.notify(Notify.FIX_NEEDED, y)
     return t
 
+  def rename(self, from_name, to_name):
+    self.timelog.rename(from_name, to_name)
+
 
 # invocation via commandline #################################################
 
@@ -2629,19 +2789,10 @@ class TimCmdline:
       if not matched:
         i += 1
 
-    _debug(args)
-
     timewarp = gl_args.get('--timewarp')
     if timewarp:
       global global_timewarp
       global_timewarp = int(timewarp)
-      was_now = now()
-      n = now()
-      _debug(n, ' = ', time2str(n))
-      _debug('timewarp = ', global_timewarp)
-      n = now()
-      _debug(n, ' = ', was_now, ' + ', global_timewarp,
-             ' = ', was_now + global_timewarp, ' = ', time2str(n))
 
     self.args = args
     self.tim = Tim(self.notify, base_dir=gl_args.get('--base'))
@@ -2863,19 +3014,12 @@ class TimCmdline:
     self.cmd_status()
 
   def cmd_forge(self, *args):
-    if len(args) < 3:
-      _raise("'forge' needs a name, a start date with time and a duration.")
+    if len(args) != 4:
+      _raise("'forge' needs a start date, time-of-day, a name and a duration.",
+             '\n  forge 2012-12-31 23:59 champagne 6:31')
 
-    name = args[0]
-    date = None
-    duration = None
-    for i, arg in enumerate(args[1:]):
-      if arg[0] in '+-':
-        date = ' '.join(args[1:1+i])
-        duration = ''.join(args[1+i:])
-    if date is None:
-      date = ' '.join(args[1:-1])
-      duration = args[-1]
+    d, t, name, duration = args
+    date = '%s %s' % (d, t)
     self.tim.forge(name, str2time(date), str2mins(duration))
 
   def cmd_tickoff(self, *args):
@@ -2911,8 +3055,14 @@ class TimCmdline:
 
     self.tim.tickoff(name, minutes, comment='tickoff')
 
+  def cmd_rename(self, *args):
+    if len(args) < 2:
+      _raise("'rename' needs two args, an existing and a non-existing name.")
+    from_name = args[0]
+    to_name = args[1]
 
-
+    self.tim.rename(from_name, to_name)
+    _msg("Renamed '", from_name, "' to '", to_name, "'")
 
   def cmd_help(self, *args):
     if not args:

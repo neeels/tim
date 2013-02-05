@@ -1,9 +1,9 @@
--tim forge jan 2012-01-11 12:00 +1:1
--tim forge feb 2012-02-12 12:00 +2.2
--tim forge mar 2012-03-13 12:00 +:33
--tim forge group.apr 2012-04-13 12:00 +:33
--tim forge group.may 2012-05-13 12:00 +:33
--tim forge group 2012-06-13 12:00 +:33
+-tim forge 2012-01-11 12:00 jan +1:1
+-tim forge 2012-02-12 12:00 feb +2.2
+-tim forge 2012-03-13 12:00 mar +:33
+-tim forge 2012-04-13 12:00 group.apr +:33
+-tim forge 2012-05-13 12:00 group.may +:33
+-tim forge 2012-06-13 12:00 group +:33
 VERBATIM DATES
 
 tim log year 2012 only jan,mar

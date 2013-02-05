@@ -71,14 +71,23 @@ def filename_timestamp(float_time=None):
 def msgs2str(*msgs):
   return ''.join([str(m) for m in msgs])
 
-class TestError(Exception):
+class ExnBase(Exception):
   def __init__(self, *msgs):
     self.msg = msgs2str(*msgs)
   def __str__(self):
-    return self.__class__.__name__ + ': ' + self.msg
+    return '*** ' + self.msg
+
+class FatalTestError(ExnBase):
+  pass
+
+class TestError(ExnBase):
+  pass
 
 def _raise(*msgs):
   raise TestError(*msgs)
+
+def _fail(*msgs):
+  raise FatalTestError(*msgs)
 
 def write_file(path, contents, mkdirs=True):
   if mkdirs:
@@ -136,14 +145,14 @@ class TestRunner:
 
   def __init__(self, tests_dir, tim_bin, work_dir_base, log_writer,
                log_timestamps=False, keep_failed_tests=False,
-               update_expected=False, verbose=False):
+               do_update=False, verbose=False):
     self.tim_bin = os.path.abspath(tim_bin)
     self.work_dir_base = os.path.abspath(work_dir_base)
     self.tests_dir = os.path.abspath(tests_dir)
     self.log_writer = log_writer
     self.log_timestamps = log_timestamps
     self.keep_failed_tests = keep_failed_tests
-    self.update_expected = update_expected
+    self.do_update = do_update
     self.verbose = verbose
     self.tests_run = []
     self.tests_failed = []
@@ -162,6 +171,20 @@ class TestRunner:
     self.log_writer.write(msgs2str(*msgs))
     self.log_writer.write('\n')
     self.log_writer.flush()
+
+  def log_cmd(self, cmd, stdout, stderr):
+    if cmd is not None:
+      self.log('> ', cmd)
+    if stdout:
+      if not isinstance(stdout, str):
+        stdout = '\n'.join(stdout)
+      self.log('--STDOUT--\n', stdout)
+    if stderr:
+      if not isinstance(stderr, str):
+        stderr = '\n'.join(stderr)
+      self.log('--STDERR--\n', stderr)
+    if stdout or stderr:
+      self.log('--')
 
   def ensure_parent_dir(self, path):
     parent = os.path.dirname(path)
@@ -270,7 +293,11 @@ class TestRunner:
           return line[:-1] or ''
         return line
 
-      lines = [stripnl(l) for l in read_file_lines( self.path )]
+      lines = read_file_lines(self.path)
+      if lines is None:
+        _raise('no such test: ', self.path)
+
+      lines = [stripnl(l) for l in lines]
       for i, line in enumerate(lines):
         if line.startswith(TestRunner.OUT_LINE):
           if not self.cmd:
@@ -301,6 +328,7 @@ class TestRunner:
             self.cmd = line
             if self.cmd.startswith('-'):
               self.cmd_out = None
+              self.cmd_err = []
               self.cmd = self.cmd[1:]
 
       self.flush()
@@ -376,15 +404,21 @@ class TestRunner:
     failed = False
     test = None
 
+    test_work = None
     try:
       test_work = self.new_dir(work_dir, test_name)
-      env = { 'HOME': os.path.abspath(test_work) }
-
       test = self.get_mangled_test(test_name, test_work)
-
+      env = { 'HOME': os.path.abspath(test_work) }
     except Exception as e:
+      if test_work:
+        try:
+          os.rmdir(test_work)
+        except:
+          pass
       self.log("EXCEPTION while reading test '", test_name, "':\n",
                traceback.format_exc() )
+      self.tests_failed.append(test_name)
+      return
 
 
     def mangle_output(output, verbatim_dates):
@@ -417,19 +451,16 @@ class TestRunner:
         continue
 
       try:
-        #print '>', cmd
+        if self.verbose and not self.do_update:
+          self.log_cmd(cmd, None, None)
         stdout, stderr = run_shell_script(cmd, env)
-        if self.verbose:
-          print cmd
-          if stdout:
-            print '--STDOUT--'
-            print stdout
-          if stderr:
-            print '--STDERR--'
-            print stderr
-          if stdout or stderr:
-            print '--'
+        if self.verbose and not self.do_update:
+          self.log_cmd(None, stdout, stderr)
         if expect_stdout is None:
+          if stderr:
+            _fail('Error output from hidden test command:\n',
+                  line, '\n',
+                  stderr)
           continue
         stdout = mangle_output(stdout, verbatim_dates)
         stderr = mangle_output(stderr, verbatim_dates)
@@ -454,31 +485,36 @@ class TestRunner:
             )))
           this_line_failed = True
         if this_line_failed:
-          if self.update_expected:
+          if self.do_update:
             test[i] = (line, cmd, stdout, stderr)
+            if self.verbose:
+              self.log_cmd(line, stdout, stderr)
           else:
             break
       except Exception as e:
-        self.log("*** EXCEPTION in '", test_name, "' on line ",
-                 i+1, ':\n', line)
-        self.log(traceback.format_exc())
+        failures.append((i, line, traceback.format_exc()))
+        break
 
     if (not (self.keep_failed_tests and failures)
        ) and os.path.isdir(test_work):
-      shutil.rmtree(test_work)
+      try:
+        time.sleep(0.1)
+        shutil.rmtree(test_work)
+      except OSError as e:
+        self.log('*** Failed to remove directory: ', test_work)
 
-    if self.update_expected:
+    if self.do_update:
       if failures:
         self.log("*** Updating test '", test_name, "'")
         self.save_test(test_name, test)
     elif failures:
       last_linenr = None
-      for i, line, f in failures:
+      for i, line, failmsg in failures:
         if i != last_linenr:
           self.log("FAIL: '", test_name, "' on line ",
                    i+1, ':\n', line)
           last_linenr = i
-        self.log('*** ', f)
+        self.log('*** ', failmsg)
       self.tests_failed.append(test_name)
       return False
     else:
@@ -514,6 +550,8 @@ class TestRunner:
     if l_failed:
       self.log('FAILED: ', l_failed, ' -- ',
                ', '.join([str(t) for t in self.tests_failed]))
+      return 1
+    return 0
 
 
 if __name__ == "__main__":
@@ -539,9 +577,9 @@ if __name__ == "__main__":
                help='if true, work dirs for failed tests are not deleted',
                action='store_true',
                default=False)
-  p.add_option('-u', '--update-expected', dest='update_expected',
-               help='overwrite expectations with actual output. This is '
-                    + '"dangerous" in that it overwrites the test script file.',
+  p.add_option('-u', '--update', dest='do_update',
+               help='overwrite test expectations with actual output. This is '
+                  + '"dangerous" in that it overwrites the test script file.',
                action='store_true',
                default=False)
   p.add_option('-v', '--verbose', dest='verbose',
@@ -560,15 +598,15 @@ if __name__ == "__main__":
   r = TestRunner(options.tests_dir, options.tim_bin,
                  options.work_dir_base, log_writer,
                  keep_failed_tests=options.keep_failed_tests,
-                 update_expected=options.update_expected,
+                 do_update=options.do_update,
                  verbose=options.verbose)
 
   if not args:
-    if options.update_expected:
+    if options.do_update:
       _raise('please supply explicit test names with -u')
     args = sorted(r.get_all_available_test_names())
 
   r.run_many(args)
-  r.summary()
+  xcode = r.summary()
   r.clean()
-
+  exit(xcode)

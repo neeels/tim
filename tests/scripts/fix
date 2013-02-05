@@ -1,6 +1,6 @@
 VERBATIM DATES
--tim forge over 2013-01-01 00:00 2
--tim forge lap 2013-01-01 01:00 2
+-tim forge 2013-01-01 00:00 over 2
+-tim forge 2013-01-01 01:00 lap 2
 
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
@@ -60,7 +60,7 @@ tim log year 2013
 #O     =====
 #O     +4    
 
--tim forge lap2 2013-01-01 01:00 2
+-tim forge 2013-01-01 01:00 lap2 2
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
@@ -100,7 +100,7 @@ tim log year 2013
 #O     =====
 #O     +6    
 
--tim forge lap3 2013-01-01 01:00 2
+-tim forge 2013-01-01 01:00 lap3 2
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
@@ -146,3 +146,23 @@ tim log year 2013
 #O      2    over
 #O     =====
 #O     +6    
+
+tim new zero
+#O added zero
+tim forge 2012-01-01 00:00 one 1
+#O forged 2012-01-01 00:00 one 1
+#O *** remember to call 'tim fix 2012' at some point.
+tim fix
+#O ** fixing: the initial totals in 2013 are wrong.
+#O  - 'one' is missing, should be 1
+#O Errors fixed: 1
+tim totals
+#O Totals:
+#O      2    lap
+#O      1    lap2
+#O      1    lap3
+#O      1    one
+#O      2    over
+#O      0    zero
+#O     =====
+#O     +7    

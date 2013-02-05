@@ -46,11 +46,10 @@ tim start jj
 #O stopped ff.ggg.hh (0:01)
 #O started ff.ggg.hh.iiiii.jj
 tim start hh.iiiii
-#E ^.*Unknown name: 'hh.iiiii'.*
-#E ...
-tim start iiiii
 #O stopped ff.ggg.hh.iiiii.jj (0:01)
 #O started ff.ggg.hh.iiiii
+tim start iiiii
+#O *** Already running: ff.ggg.hh.iiiii
 tim stop
 #O stopped ff.ggg.hh.iiiii (0:01)
 tim log

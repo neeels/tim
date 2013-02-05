@@ -1,0 +1,238 @@
+tim rename xxx yyy
+#E *** I don't know the name 'xxx'
+
+-tim new a b c d.e f.x g.x h.x i.j i.k i.l i.m.n.o
+
+VERBATIM DATES
+-tim forge 2013-01-01 12:00 a 1
+-tim forge 2013-01-02 12:00 d 1
+-tim forge 2013-01-02 13:00 d.e 1
+-tim forge 2013-01-03 12:00 f.x 1
+-tim forge 2013-01-04 12:00 i.m.n 1
+-tim forge 2013-01-05 12:00 i.m.n.o 1
+WARP TO DATE 2013-01-10
+-tim tickoff i 2
+
+tim rename xxx yyy
+#E *** I don't know the name 'xxx'
+
+tim rename a b
+#E *** cannot rename, target name already exists: 'b'
+
+tim rename e wrong
+#E *** you must supply a full name to rename. How about:
+#E tim rename "d.e" "wrong"
+
+tim rename x wrong
+#E *** you must supply a full name to rename. How about:
+#E tim rename "h.x" "wrong"
+#E tim rename "g.x" "wrong"
+#E tim rename "f.x" "wrong"
+
+tim rename i* wrong
+#E *** you must supply a full name to rename. How about:
+#E tim rename "i.l" "wrong"
+#E tim rename "i.m.n" "wrong"
+#E tim rename "i.j" "wrong"
+#E tim rename "i.k" "wrong"
+#E tim rename "i" "wrong"
+#E tim rename "i.m.n.o" "wrong"
+
+tim rename i.* wrong
+#E *** you must supply a full name to rename. How about:
+#E tim rename "i.l" "wrong"
+#E tim rename "i.m.n" "wrong"
+#E tim rename "i.m.n.o" "wrong"
+#E tim rename "i.j" "wrong"
+#E tim rename "i.k" "wrong"
+
+tim rename a a,b
+#E *** Invalid name: 'a,b'
+#E ...
+
+tim rename d. Z
+#E *** Invalid name: 'd.'
+#E ...
+
+tim rename a A
+#O Renamed 'a' to 'A'
+
+tim fix
+#O All correct.
+
+tim totals
+#O Totals:
+#O      1    A
+#O      0    b
+#O      0    c
+#O      2    d
+#O            1    ^
+#O            1    e
+#O      1    f
+#O            1    x
+#O      0    g
+#O            0    x
+#O      0    h
+#O            0    x
+#O      0    i
+#O           -2    ^
+#O            0    j
+#O            0    k
+#O            0    l
+#O            2    m
+#O                  2    n
+#O                        1    ^
+#O                        1    o
+#O     =====
+#O     +4    
+
+tim rename b B
+#O Renamed 'b' to 'B'
+
+tim fix
+#O All correct.
+
+tim totals
+#O Totals:
+#O      1    A
+#O      0    B
+#O      0    c
+#O      2    d
+#O            1    ^
+#O            1    e
+#O      1    f
+#O            1    x
+#O      0    g
+#O            0    x
+#O      0    h
+#O            0    x
+#O      0    i
+#O           -2    ^
+#O            0    j
+#O            0    k
+#O            0    l
+#O            2    m
+#O                  2    n
+#O                        1    ^
+#O                        1    o
+#O     =====
+#O     +4    
+
+tim rename d D
+#O Renamed 'd' to 'D'
+
+tim fix
+#O All correct.
+
+tim totals
+#O Totals:
+#O      1    A
+#O      0    B
+#O      2    D
+#O            1    ^
+#O            1    e
+#O      0    c
+#O      1    f
+#O            1    x
+#O      0    g
+#O            0    x
+#O      0    h
+#O            0    x
+#O      0    i
+#O           -2    ^
+#O            0    j
+#O            0    k
+#O            0    l
+#O            2    m
+#O                  2    n
+#O                        1    ^
+#O                        1    o
+#O     =====
+#O     +4    
+
+tim rename i.m z
+#O Renamed 'i.m' to 'z'
+
+tim fix
+#O All correct.
+
+tim totals
+#O Totals:
+#O      1    A
+#O      0    B
+#O      2    D
+#O            1    ^
+#O            1    e
+#O      0    c
+#O      1    f
+#O            1    x
+#O      0    g
+#O            0    x
+#O      0    h
+#O            0    x
+#O     -2    i
+#O            0    j
+#O            0    k
+#O            0    l
+#O      2    z
+#O            2    n
+#O                  1    ^
+#O                  1    o
+#O     =====
+#O     +4    
+
+tim rename z.n A.n
+#O Renamed 'z.n' to 'A.n'
+
+tim fix
+#O All correct.
+
+tim totals
+#O Totals:
+#O      3    A
+#O            1    ^
+#O            2    n
+#O                  1    ^
+#O                  1    o
+#O      0    B
+#O      2    D
+#O            1    ^
+#O            1    e
+#O      0    c
+#O      1    f
+#O            1    x
+#O      0    g
+#O            0    x
+#O      0    h
+#O            0    x
+#O     -2    i
+#O            0    j
+#O            0    k
+#O            0    l
+#O      0    z
+#O     =====
+#O     +4    
+
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 12:00 A 1
+#O 2013-01-02 12:00 D 1
+#O 2013-01-02 13:00 D.e 1
+#O 2013-01-03 12:00 f.x 1
+#O 2013-01-04 12:00 A.n 1
+#O 2013-01-05 12:00 A.n.o 1
+#O 2013-01-10 00:00 i -2 # tickoff
+#O      3    A
+#O            1    ^
+#O            2    n
+#O                  1    ^
+#O                  1    o
+#O      2    D
+#O            1    ^
+#O            1    e
+#O      1    f
+#O            1    x
+#O     -2    i
+#O     =====
+#O     +4    
