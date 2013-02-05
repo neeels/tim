@@ -1,0 +1,308 @@
+VERBATIM DATES
+-tim forge 2011-01-01 12:00 a :30
+-tim forge 2011-01-02 12:00 b 1
+-tim forge 2013-01-01 12:00 a 1
+-tim forge 2013-01-02 12:00 b 1
+-tim forge 2013-01-02 13:00 c.d 1
+-tim forge 2013-01-03 12:00 a 2
+-tim forge 2013-01-04 12:00 e.f.g 1
+-tim forge 2013-01-05 12:00 a 3
+-tim forge 2013-01-05 16:00 e.f 1
+-tim forge 2013-01-06 13:00 c.d 2
+-tim fix
+
+tim forget d
+#E *** 'd' is not a full name. Try:
+#E   tim forget "c.d"
+
+tim log 3 y u 2013 -f | tee original_state
+#O 3 years, ending around 2013-01-01 00:00, showing entire years.
+#O Saturday 2011-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2011-01-01 12:00 a 0:30
+#O 2011-01-02 12:00 b 1
+#O 2013-01-01 12:00 a 1
+#O 2013-01-02 12:00 b 1
+#O 2013-01-02 13:00 c.d 1
+#O 2013-01-03 12:00 a 2
+#O 2013-01-04 12:00 e.f.g 1
+#O 2013-01-05 12:00 a 3
+#O 2013-01-05 16:00 e.f 1
+#O 2013-01-06 13:00 c.d 2
+#O      6:30 a
+#O      2    b
+#O      3    c.d
+#O      1    e.f
+#O      1    e.f.g
+#O     =====
+#O    +13:30 
+
+tim totals -f | tee -a original_state
+#O Totals:
+#O      6:30 a
+#O      2    b
+#O      3    c.d
+#O      1    e.f
+#O      1    e.f.g
+#O     =====
+#O    +13:30 
+
+WARP TO DATE 2013-02-01
+tim forget a
+#O forgot about 'a'
+
+tim log 3 years until 2013
+#O 3 years, ending around 2013-01-01 00:00, showing entire years.
+#O Saturday 2011-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2011-01-02 12:00 b 1
+#O 2013-01-02 12:00 b 1
+#O 2013-01-02 13:00 c.d 1
+#O 2013-01-04 12:00 e.f.g 1
+#O 2013-01-05 16:00 e.f 1
+#O 2013-01-06 13:00 c.d 2
+#O   2 b
+#O   3 c
+#O     3 d
+#O   2 e
+#O     2 f
+#O       1 ^
+#O       1 g
+#O  ==
+#O  +7
+
+tim totals
+#O Totals:
+#O   2 b
+#O   3 c
+#O     3 d
+#O   2 e
+#O     2 f
+#O       1 ^
+#O       1 g
+#O  ==
+#O  +7
+
+WARP TO DATE 2013-02-01 1
+tim forget "c.d"
+#O forgot about 'c.d'
+
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-02 12:00 b 1
+#O 2013-01-04 12:00 e.f.g 1
+#O 2013-01-05 16:00 e.f 1
+#O   1 b
+#O   2 e
+#O     2 f
+#O       1 ^
+#O       1 g
+#O  ==
+#O  +3
+
+tim totals
+#O Totals:
+#O   2 b
+#O   0 c
+#O   2 e
+#O     2 f
+#O       1 ^
+#O       1 g
+#O  ==
+#O  +4
+
+WARP TO DATE 2013-02-01 2
+tim forget e.f
+#O forgot about 'e.f'
+
+tim log year 2013 -f
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-02 12:00 b 1
+#O 2013-01-04 12:00 e.f.g 1
+#O      1    b
+#O      1    e.f.g
+#O     =====
+#O     +2    
+
+tim totals -f
+#O Totals:
+#O      2    b
+#O      0    c
+#O      1    e.f.g
+#O     =====
+#O     +3    
+
+tim log year 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-02 12:00 b 1
+#O 2013-01-04 12:00 e.f.g 1
+#O   1 b
+#O   1 e
+#O     1 f
+#O       1 g
+#O  ==
+#O  +2
+
+tim totals
+#O Totals:
+#O   2 b
+#O   0 c
+#O   1 e
+#O     1 f
+#O       1 g
+#O  ==
+#O  +3
+
+cat forgotten/a__*
+#O 2011-01-01 12:00 a 0:30
+#O 2013-01-01 12:00 a 1
+#O 2013-01-03 12:00 a 2
+#O 2013-01-05 12:00 a 3
+
+cat forgotten/c.d__*
+#O 2013-01-02 13:00 c.d 1
+#O 2013-01-06 13:00 c.d 2
+
+cat forgotten/e.f__*
+#O 2013-01-05 16:00 e.f 1
+
+tim recall
+#O I dimly remember:
+#O ^a__2013_02_01_00_.*
+#O ^c.d__2013_02_01_01_.*
+#O ^e.f__2013_02_01_02_.*
+
+tim recall farbleglast
+#E ^.* no such forgotten file: '.*/forgotten/farbleglast'
+
+tim recall forgotten/c.d__*
+#O ** sorted entries in 2013
+#O Errors fixed: 1
+#O ^restored timings from 'forgotten/c.d__2013_02_01_01_.*
+
+tim log year 2013 -f
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-02 12:00 b 1
+#O 2013-01-02 13:00 c.d 1
+#O 2013-01-04 12:00 e.f.g 1
+#O 2013-01-06 13:00 c.d 2
+#O      1    b
+#O      3    c.d
+#O      1    e.f.g
+#O     =====
+#O     +5    
+
+tim totals -f
+#O Totals:
+#O      2    b
+#O      0    c
+#O      3    c.d
+#O      1    e.f.g
+#O     =====
+#O     +6    
+
+WARP TO DATE 2013-02-01 5
+tim recall forgotten/a__*
+#O ** sorted entries in 2011
+#O ** sorted entries in 2013
+#O ** fixing: the initial totals in 2012 are wrong.
+#O  - 'a' is missing, should be 0:30
+#O ** fixing: the initial totals in 2013 are wrong.
+#O  - 'a' is missing, should be 0:30
+#O Errors fixed: 4
+#O ^restored timings from 'forgotten/a__2013_02_01_00_.*
+
+tim log 3 y u 2013 -f
+#O 3 years, ending around 2013-01-01 00:00, showing entire years.
+#O Saturday 2011-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2011-01-01 12:00 a 0:30
+#O 2011-01-02 12:00 b 1
+#O 2013-01-01 12:00 a 1
+#O 2013-01-02 12:00 b 1
+#O 2013-01-02 13:00 c.d 1
+#O 2013-01-03 12:00 a 2
+#O 2013-01-04 12:00 e.f.g 1
+#O 2013-01-05 12:00 a 3
+#O 2013-01-06 13:00 c.d 2
+#O      6:30 a
+#O      2    b
+#O      3    c.d
+#O      1    e.f.g
+#O     =====
+#O    +12:30 
+tim totals -f
+#O Totals:
+#O      6:30 a
+#O      2    b
+#O      0    c
+#O      3    c.d
+#O      1    e.f.g
+#O     =====
+#O    +12:30 
+
+WARP TO DATE 2013-02-01 6
+tim recall forgotten/e.f__*
+#E *** cannot recall timings, name already exists: 'e.f'
+
+tim recall forgotten/e.f__* add
+#O ** sorted entries in 2013
+#O Errors fixed: 1
+#O ^restored timings from 'forgotten/e.f__2013_02_01_02_.*
+
+tim totals -f
+#O Totals:
+#O      6:30 a
+#O      2    b
+#O      0    c
+#O      3    c.d
+#O      1    e.f
+#O      1    e.f.g
+#O     =====
+#O    +13:30 
+
+WARP TO DATE 2013-02-01 10
+tim forget c
+#O forgot about 'c'
+
+tim log 3 y u 2013 -f | tee restored_state
+#O 3 years, ending around 2013-01-01 00:00, showing entire years.
+#O Saturday 2011-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2011-01-01 12:00 a 0:30
+#O 2011-01-02 12:00 b 1
+#O 2013-01-01 12:00 a 1
+#O 2013-01-02 12:00 b 1
+#O 2013-01-02 13:00 c.d 1
+#O 2013-01-03 12:00 a 2
+#O 2013-01-04 12:00 e.f.g 1
+#O 2013-01-05 12:00 a 3
+#O 2013-01-05 16:00 e.f 1
+#O 2013-01-06 13:00 c.d 2
+#O      6:30 a
+#O      2    b
+#O      3    c.d
+#O      1    e.f
+#O      1    e.f.g
+#O     =====
+#O    +13:30 
+
+tim totals -f | tee -a restored_state
+#O Totals:
+#O      6:30 a
+#O      2    b
+#O      3    c.d
+#O      1    e.f
+#O      1    e.f.g
+#O     =====
+#O    +13:30 
+
+diff -su original_state restored_state
+#O Files original_state and restored_state are identical
+
+tim recall
+#O I dimly remember:
+#O ^a__2013_02_01_00_.*
+#O ^c.d__2013_02_01_01_.*
+#O ^c__2013_02_01_10_.*
+#O ^e.f__2013_02_01_02_.*

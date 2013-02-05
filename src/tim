@@ -555,7 +555,7 @@ def time2weekdaystr(float_time, weekday_strings={
 
 def filename_timestamp(float_time=None):
   if float_time is None:
-    float_time = float(time.time())
+    float_time = float(now())
   return time.strftime(FILENAME_TIMESTAMP_FORMAT,
                        time.localtime(float(float_time)))
 
@@ -912,6 +912,8 @@ class Timing:
       return True
     return False
 
+
+      
 class State:
   STOPPED = 'stopped'
   STARTING = 'starting'
@@ -1330,6 +1332,7 @@ class Totals:
     assert(to_name not in self.entries)
     modified = False
     keys = self.entries.keys()
+    # ^ just to illustrate that the keys list stays unmodified.
     for k in keys:
       new_k = Timing._rename_str(k, from_name, to_name)
       if new_k:
@@ -1345,6 +1348,19 @@ class Totals:
       self.modified = True
     return modified
 
+  def forget(self, name, ensure_presence=False):
+    modified = False
+    if name in self.entries:
+      del self.entries[name]
+      modified = True
+    if modified and ensure_presence:
+      # if this eliminated a child, the parent should still exist.
+      parent_name = '.'.join(name.split('.')[:-1])
+      if parent_name and not self.name_exists(parent_name):
+        self.entries[parent_name] = 0
+    if modified:
+      self.modified = True
+    return modified
 
 
 class Timelog(Notify):
@@ -1393,6 +1409,7 @@ class Timelog(Notify):
     t.add_timing(timing)
     if directly_to_file:
       t.save()
+    return timings_file
 
   def remove_timing(self, timing):
     yearnr = time2year(timing.started)
@@ -1451,6 +1468,57 @@ class Timelog(Notify):
     if totals.modified:
       totals.save()
 
+  def forget(self, name, path):
+    modified = False
+    forgotten_timings = Timelog.TimingsFile(self.notify_func, path, read=False)
+    yearnrs = self.get_available_years()
+    for yearnr in yearnrs:
+      year = self.get_timings_for_year(yearnr)
+      if not year.exists:
+        continue
+      forgotten_timings.add_timings( year.forget(name) )
+      if forgotten_timings.modified:
+        modified = True
+        forgotten_timings.save()
+      if year.modified:
+        modified = True
+        year.save()
+
+    totals = self.get_totals()
+    totals.forget(name, ensure_presence=True)
+    if totals.modified:
+      modified = True
+      totals.save()
+
+    return modified
+
+  def recall(self, timings_path, as_name=None, do_add=False):
+    forgotten_timings = Timelog.TimingsFile(self.notify_func, timings_path)
+    if not forgotten_timings.exists:
+      _raise("no such forgotten file: '", timings_path, "'")
+
+    if not do_add:
+      totals = self.get_totals()
+      names = set([t.name for t in forgotten_timings.timings])
+      if as_name:
+        if len(names) > 1:
+          _raise('thwarting attempt to add several timing names as a single ',
+                 "other. You supplied 'as ", as_name, "', and the file ",
+                 'contains: ', ', '.join(sorted(names)))
+        names = [as_name]
+
+      if any([totals.name_exists(name) for name in names]):
+        _raise("cannot recall timings, name already exists: '", name, "'")
+
+    modified = False
+    self.timelog_files = {}
+    for t in forgotten_timings.timings:
+      if as_name:
+        t.name = as_name
+      self.add_timing(t)
+      modified = True
+    self.fix()
+    return modified
 
   class TimingsFile(Notify):
     def __init__(self, notify_func, path, read=True):
@@ -1464,6 +1532,11 @@ class Timelog(Notify):
       self.valid = True
       if read:
         self.read()
+      else:
+        self.timings = []
+        self.initial_totals = Totals()
+        self.totals = Totals()
+        self.exists = False
 
     def read(self):
       self.exists = False
@@ -1553,6 +1626,10 @@ class Timelog(Notify):
       else:
         self.modified = True
 
+    def add_timings(self, timings, directly_to_file=False):
+      for t in timings:
+        self.add_timing(t, directly_to_file)
+
     def remove_timing(self, timing):
       matches = [i for i,t in enumerate(self.timings)
                  if t.matches(timing)]
@@ -1589,7 +1666,31 @@ class Timelog(Notify):
       if self.initial_totals:
         if self.initial_totals.rename(from_name, to_name):
           self.modified = True
-      self.update_totals()
+      if self.totals:
+        if self.totals.rename(from_name, to_name):
+          self.modified = True
+
+    def forget(self, name):
+      l = len(self.timings)
+      new_timings = []
+      forgotten_timings = []
+      for t in self.timings:
+        if name == t.name:
+          forgotten_timings.append(t)
+        else:
+          new_timings.append(t)
+
+      if forgotten_timings:
+        self.timings = new_timings
+        self.modified = True
+      if self.initial_totals:
+        if self.initial_totals.forget(name):
+          self.modified = True
+      if self.totals:
+        if self.totals.forget(name):
+          self.modified = True
+      return forgotten_timings
+  #end of TimingsFile
 
   def path_for_year(self, year):
     return j(self.timelog_dir, str(int(year)))
@@ -1656,6 +1757,7 @@ class Timelog(Notify):
         self.msg('Errors fixed: ', fixed)
       if unfixed:
         self.warn('Unfixed errors: ', unfixed)
+    return fixed
 
   def _fix_timings_in_wrong_years(self, yearnrs):
     '''check individual entries, sort them into the correct files.'''
@@ -1874,7 +1976,7 @@ class Timelog(Notify):
     def __init__(self, unit=None, amount=None, start=None, end=None,
                  snap_to_calendar=None, include_end=None, include_start=None,
                  rounding_unit=None, rounding_amount=None, sum_unit=None,
-                 sum_amount=None, group=None, only=None):
+                 sum_amount=None, group=None, only=None, flat=None):
       '''unit: a UNIT_* constant.
          amount: a float number.
          start: a start date in unix time (seconds since epoch), inclusive.
@@ -1894,6 +1996,7 @@ class Timelog(Notify):
       self.sum_unit = sum_unit
       self.group = group
       self.only = only
+      self.flat = flat
 
   class QueryResult:
     def __init__(self):
@@ -1912,6 +2015,10 @@ class Timelog(Notify):
       self.group = None
       self.rounding_unit = None
       self.rounding_amount = None
+      self.flat = None
+
+    def totals_string(self):
+      return self.totals.to_string(flat = self.flat)
 
     def do_rounding(self):
       if ((self.from_query is None)
@@ -2202,6 +2309,8 @@ class Timelog(Notify):
                              + "'",
                            self.unit)
           self.unit = arg_unit
+        elif '-f' == self.token:
+          self.flat = True
         elif 'exactly'.startswith(self.token):
           self.superfluous("'exactly' keyword", self.snap_to_calendar)
           self.snap_to_calendar = False
@@ -2292,6 +2401,7 @@ class Timelog(Notify):
     snap_to_calendar = query.snap_to_calendar
     rounding_amount = query.rounding_amount
     rounding_unit = query.rounding_unit
+    flat = query.flat
 
     only = None
     if query.only:
@@ -2359,6 +2469,7 @@ class Timelog(Notify):
     query_result.unit = unit
     query_result.amount = amount
     query_result.snap_to_calendar = snap_to_calendar
+    query_result.flat = flat
 
     if rounding_amount:
       query_result.round(rounding_amount, rounding_unit)
@@ -2558,6 +2669,7 @@ class Tim(Notify):
     self.state_file_path = j(base_dir, 'running')
     self.timelog_dir = j(base_dir, 'timelog')
     self.lock_path = j(base_dir, 'lock')
+    self.forgotten_path = j(base_dir, 'forgotten')
 
   def new(self, name):
     with self.lock:
@@ -2753,6 +2865,37 @@ class Tim(Notify):
   def rename(self, from_name, to_name):
     self.timelog.rename(from_name, to_name)
 
+  def forget(self, *names):
+    totals = self.timelog.get_totals()
+    full_names = []
+    for name in names:
+      full_name = totals.find_full_name(name)
+      if full_name != name:
+        _raise("'", name, '\' is not a full name. Try:\n  tim forget "',
+               full_name, '"')
+      full_names.append(totals.find_full_name(name))
+
+    for name in full_names:
+      forgotten_name = '%s__%s' % (name, filename_timestamp())
+      forgotten_path = j(self.forgotten_path, forgotten_name)
+      write_file(forgotten_path, '...\n')
+      if self.timelog.forget(name, forgotten_path):
+        self.msg("forgot about '", name, "'")
+      else:
+        self.warn("found nothing to forget about '", name, "'")
+
+  def get_all_forgotten_ids(self):
+    if not os.path.exists(self.forgotten_path):
+      return []
+    return [f for f in os.listdir(self.forgotten_path)
+              if ('__' in f) and not f.startswith('.')]
+
+  def recall(self, forgotten_id, as_name=None, do_add=False):
+    if os.sep in forgotten_id:
+      forgotten_path = os.path.abspath(forgotten_id)
+    else:
+      forgotten_path = j(self.forgotten_path, forgotten_id)
+    return self.timelog.recall(forgotten_path, as_name, do_add)
 
 # invocation via commandline #################################################
 
@@ -2938,14 +3081,14 @@ class TimCmdline:
       _msg('Totals:\n', totals.to_string(flat))
 
   def cmd_log(self, *args):
-    log = self.tim.timelog.run_query_phrase(args)
-    _msg(log.description_str())
-    if not log.timings:
+    query_result = self.tim.timelog.run_query_phrase(args)
+    _msg(query_result.description_str())
+    if not query_result.timings:
       _warn('No entries found.')
       return
-    for entry in log.timings:
+    for entry in query_result.timings:
       _msg(str(entry))
-    _msg(log.totals.to_string())
+    _msg(query_result.totals_string())
 
   def cmd_fix(self, *args):
     clear_initial_totals = False
@@ -3063,6 +3206,50 @@ class TimCmdline:
 
     self.tim.rename(from_name, to_name)
     _msg("Renamed '", from_name, "' to '", to_name, "'")
+
+  def cmd_forget(self, *args):
+    if len(args) < 1:
+      _raise("'forget' needs at least one name argument.")
+    forgotten = self.tim.forget(*args)
+    if forgotten:
+      _msg('Forgot about ', ', '.join(forgotten))
+
+  def cmd_recall(self, *args):
+    if not args:
+      ids = self.tim.get_all_forgotten_ids()
+      if not ids:
+        _msg('My memory is impeccable. No ids to recall.')
+      else:
+        _msg('I dimly remember:\n', '\n'.join(sorted(ids)))
+      return
+
+    forgotten_id = args[0]
+    as_name = None
+    do_add = False
+    i = 1
+    while i < len(args):
+      arg = args[i]
+      if arg in ('as'):
+        i += 1
+        if i >= len(args):
+          _raise("expecting name after 'as' keyword")
+        arg = args[i]
+        if as_name is not None:
+          _raise("can't use name '", arg, "', already have name '", 
+                 as_name, "'")
+        as_name = arg
+      elif 'add' == arg:
+        if do_add:
+          _raise("I know, add. One 'add' is enough.")
+        do_add = True
+      else:
+        _raise("unknown argument: '", arg, "'", help_hint)
+
+      i += 1
+    if self.tim.recall(forgotten_id, as_name, do_add):
+      _msg("restored timings from '", forgotten_id, "'")
+    else:
+      _warn('nothing was restored.')
 
   def cmd_help(self, *args):
     if not args:

@@ -124,10 +124,11 @@ def read_file_lines(path):
   except IOError:
     return None
 
-def run_shell_script(script, env=None):
+def run_shell_script(script, env=None, cwd=None):
   stdout, stderr = subprocess.Popen(script,
                                     shell=True,
                                     env=env,
+                                    cwd=cwd,
                                     stdout=subprocess.PIPE,
                                     stderr=subprocess.PIPE).communicate()
   return stdout, stderr
@@ -453,7 +454,7 @@ class TestRunner:
       try:
         if self.verbose and not self.do_update:
           self.log_cmd(cmd, None, None)
-        stdout, stderr = run_shell_script(cmd, env)
+        stdout, stderr = run_shell_script(cmd, env, cwd=test_work)
         if self.verbose and not self.do_update:
           self.log_cmd(None, stdout, stderr)
         if expect_stdout is None:
@@ -546,9 +547,12 @@ class TestRunner:
                l_failed + l_passed)
     self.log('\ntests run: ', l_run)
     if l_passed:
-      self.log('passed: ', l_passed)
+      if l_passed == l_run:
+        self.log('all passed.')
+      else:
+        self.log('   passed: ', l_passed)
     if l_failed:
-      self.log('FAILED: ', l_failed, ' -- ',
+      self.log('   FAILED: ', l_failed, ' -- ',
                ' '.join([str(t) for t in self.tests_failed]))
       return 1
     return 0
