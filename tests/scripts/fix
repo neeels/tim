@@ -7,10 +7,10 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 01:00 lap 2
-#O      2    lap
-#O      2    over
-#O     =====
-#O     +4    
+#O   2 lap
+#O   2 over
+#O  ==
+#O  +4
 
 tim fix
 #O ** NOT FIXING: overlap:
@@ -25,10 +25,10 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 01:00 lap 2
-#O      2    lap
-#O      2    over
-#O     =====
-#O     +4    
+#O   2 lap
+#O   2 over
+#O  ==
+#O  +4
 
 tim fix --overlaps=ignore
 #O All correct.
@@ -37,10 +37,10 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 01:00 lap 2
-#O      2    lap
-#O      2    over
-#O     =====
-#O     +4    
+#O   2 lap
+#O   2 over
+#O  ==
+#O  +4
 
 tim fix --overlaps=shift
 #O ** shifted overlap:
@@ -55,10 +55,10 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 02:00 lap 2
-#O      2    lap
-#O      2    over
-#O     =====
-#O     +4    
+#O   2 lap
+#O   2 over
+#O  ==
+#O  +4
 
 -tim forge 2013-01-01 01:00 lap2 2
 tim log year 2013
@@ -67,11 +67,11 @@ tim log year 2013
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 02:00 lap 2
 #O 2013-01-01 01:00 lap2 2
-#O      2    lap
-#O      2    lap2
-#O      2    over
-#O     =====
-#O     +6    
+#O   2 lap
+#O   2 lap2
+#O   2 over
+#O  ==
+#O  +6
 
 tim fix --overlaps=shift
 #O ** sorted entries in 2013
@@ -94,11 +94,11 @@ tim log year 2013
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 02:00 lap2 2
 #O 2013-01-01 04:00 lap 2
-#O      2    lap
-#O      2    lap2
-#O      2    over
-#O     =====
-#O     +6    
+#O   2 lap
+#O   2 lap2
+#O   2 over
+#O  ==
+#O  +6
 
 -tim forge 2013-01-01 01:00 lap3 2
 tim log year 2013
@@ -108,12 +108,12 @@ tim log year 2013
 #O 2013-01-01 02:00 lap2 2
 #O 2013-01-01 04:00 lap 2
 #O 2013-01-01 01:00 lap3 2
-#O      2    lap
-#O      2    lap2
-#O      2    lap3
-#O      2    over
-#O     =====
-#O     +8    
+#O   2 lap
+#O   2 lap2
+#O   2 lap3
+#O   2 over
+#O  ==
+#O  +8
 
 tim fix --overlaps=drop
 #O ** sorted entries in 2013
@@ -140,12 +140,12 @@ tim log year 2013
 #O 2013-01-01 02:00 lap3 1
 #O 2013-01-01 03:00 lap2 1
 #O 2013-01-01 04:00 lap 2
-#O      2    lap
-#O      1    lap2
-#O      1    lap3
-#O      2    over
-#O     =====
-#O     +6    
+#O   2 lap
+#O   1 lap2
+#O   1 lap3
+#O   2 over
+#O  ==
+#O  +6
 
 tim new zero
 #O added zero
@@ -158,11 +158,11 @@ tim fix
 #O Errors fixed: 1
 tim totals
 #O Totals:
-#O      2    lap
-#O      1    lap2
-#O      1    lap3
-#O      1    one
-#O      2    over
-#O      0    zero
-#O     =====
-#O     +7    
+#O   2 lap
+#O   1 lap2
+#O   1 lap3
+#O   1 one
+#O   2 over
+#O   0 zero
+#O  ==
+#O  +7

@@ -27,13 +27,13 @@ tim log
 #O DATE foo 0:01
 #O DATE foo 0:01
 #O DATE bar 0:01
-#O      0:01 bar
-#O      0:02 foo
-#O     =====
-#O     +0:03 
+#O   0:01 bar
+#O   0:02 foo
+#O  =====
+#O  +0:03
 tim totals
 #O Totals:
-#O      0:01 bar
-#O      0:02 foo
-#O     =====
-#O     +0:03 
+#O   0:01 bar
+#O   0:02 foo
+#O  =====
+#O  +0:03
