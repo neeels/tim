@@ -2743,7 +2743,7 @@ class Tim(Notify):
     sys.stdout.flush()
     sys.stderr.flush()
 
-    daemon_out = open('daemon.log', 'a+')
+    daemon_out = open(j(self.base_dir, 'daemon.log'), 'a+')
     daemon_out.write(msgs2str(time2str(now()),' -- launching daemon\n'))
     daemon_out.flush()
 
