@@ -46,13 +46,11 @@ Command line usage:
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
   tim stop [-- <comment>]
   tim stopped [-]<HH:MM> [-- <comment>]
-  tim totals [only <name>[.*][,...]] [-f] \
-             [round [<nr>] [hours|days|weeks|months|years]]
+  tim totals [round <duration>] [only <name>[.*][,...]] [-f]
   tim log [<nr>] [hours|days|weeks|months|years] \
           [from|until|before|after <date>] \
           [sum [<nr>] hours|days|weeks|months|years] \
-          [round [<nr>] [hours|days|weeks|months|years]] \
-          [only <name>[.*][,...]] [-f]
+          [round <duration>] [only <name>[.*][,...]] [-f]
   tim fix [<start-year>] [--clear] [--overlaps=shift|drop]
   tim tickoff <name> <hours> 
   tim tickoff <hours> <name> 
@@ -851,21 +849,27 @@ class Timing:
   def serialize(self):
     return repr(self) + '\n'
 
-  def __str__(self):
-    return repr(self)
-
-  def __repr__(self):
+  def to_string(self, rounder=None):
     if self.started:
       started_str = self.started_str()
     else:
       started_str = 'not_started'
+    minutes = self.minutes
+    if rounder:
+      minutes = rounder.round(self.name, minutes)
     elts = [started_str,
             self.name or 'unnamed',
-            mins2str(self.minutes or 0)]
+            mins2str(minutes or 0)]
     if self.comment:
       elts.append('#')
       elts.append(self.comment)
     return ' '.join(elts)
+
+  def __str__(self):
+    return repr(self)
+
+  def __repr__(self):
+    return self.to_string()
 
   def deserialize(self, line):
     match = Regex.match(TIMING_RE, line)
@@ -1005,6 +1009,36 @@ class State:
       return State.REASON_DAEMON_EXITED
     return None
 
+class MinutesRounder:
+  def __init__(self, round_to_minutes):
+    if (not round_to_minutes) or (round_to_minutes == 1):
+      self.enabled = False
+      return
+    self.round_to_minutes = round_to_minutes
+    self.enabled = True
+    self.surplus = {}
+
+  def round(self, name, minutes):
+    if not self.enabled:
+      return minutes
+    minutes = int(minutes)
+    # first add previous surplus, if any. Then do the rounding, and
+    # then remember the new surplus for this name.
+    minutes = float(minutes) + (self.surplus.get(name) or 0)
+    amount = minutes / self.round_to_minutes
+    amount_frac, amount_int = math.modf(amount)
+    if amount_frac >= 0.5:
+      amount_int += 1
+    elif amount_frac <= -0.5:
+      amount_int -= 1
+
+    rounded_minutes = int(amount_int * self.round_to_minutes)
+
+    surplus = minutes - rounded_minutes
+    if surplus != 0:
+      self.surplus[name] = surplus
+    return rounded_minutes
+
 
 class Totals:
   def __init__(self, totals_path=None, read=True):
@@ -1025,7 +1059,7 @@ class Totals:
 
 #  def add_all(self, other_totals_instance):
 #    for name, minutes in other_totals_instance.iteritems():
-#      self._add_timing(name, minutes)
+#      self.add_time(name, minutes)
 
   class TotalsErr(Error):
     pass
@@ -1036,15 +1070,15 @@ class Totals:
     self.entries[name] = 0
     self.modified = True
 
-  def _add_timing(self, name, minutes):
+  def add_time(self, name, minutes):
     self.entries[name] = (self.get(name) or 0) + minutes
     self.modified = True
 
   def add_timing(self, timing):
-    self._add_timing(timing.name, timing.minutes)
+    self.add_time(timing.name, timing.minutes)
 
   def remove_timing(self, timing):
-    self._add_timing(timing.name, -timing.minutes)
+    self.add_time(timing.name, -timing.minutes)
 
   def get(self, *args):
     return self.entries.get(*args)
@@ -1104,21 +1138,28 @@ class Totals:
     self.entries = {}
     self.modified = True
 
-  def to_string(self, flat=False, selected=None):
+  def to_string(self, flat=False, selected=None, round_to_minutes=None):
     items = []
     seen = set()
 
-    for name, minutes in sorted(self.iteritems()):
+    rounder = MinutesRounder(round_to_minutes)
+
+    for name, minutes in self.iteritems():
       if (not selected) or (name in selected):
-        items.append((name, minutes))
+        items.append([name, minutes])
         seen.add(name)
     
     if selected:
       for name in selected:
         if not name in seen:
-          items.append((name, 0))
+          items.append([name, 0])
           seen.add(name)
 
+    items = sorted(items)
+    if rounder.enabled:
+      for item in items:
+        name, minutes = item
+        item[1] = rounder.round(name, minutes)
 
     if flat:
       def total2str(name, minutes, always_show_sign=False):
@@ -1130,7 +1171,7 @@ class Totals:
 
       out = []
       grand_total = 0
-      for name, minutes in sorted(items):
+      for name, minutes in items:
         grand_total += minutes
         out.append(total2str(name, minutes))
 
@@ -1975,8 +2016,8 @@ class Timelog(Notify):
   class Query:
     def __init__(self, unit=None, amount=None, start=None, end=None,
                  snap_to_calendar=None, include_end=None, include_start=None,
-                 rounding_unit=None, rounding_amount=None, sum_unit=None,
-                 sum_amount=None, group=None, only=None, flat=None):
+                 round_to_minutes=None, sum_unit=None, sum_amount=None,
+                 group=None, only=None, flat=None):
       '''unit: a UNIT_* constant.
          amount: a float number.
          start: a start date in unix time (seconds since epoch), inclusive.
@@ -1991,8 +2032,7 @@ class Timelog(Notify):
       self.snap_to_calendar = snap_to_calendar
       self.include_start = include_start
       self.include_end = include_end
-      self.rounding_unit = rounding_unit
-      self.rounding_amount = rounding_amount
+      self.round_to_minutes = round_to_minutes
       self.sum_unit = sum_unit
       self.group = group
       self.only = only
@@ -2013,26 +2053,12 @@ class Timelog(Notify):
       self.amount = None
       self.snap_to_calendar = None
       self.group = None
-      self.rounding_unit = None
-      self.rounding_amount = None
+      self.round_to_minutes = None
       self.flat = None
 
     def totals_string(self):
-      return self.totals.to_string(flat = self.flat)
-
-    def do_rounding(self):
-      if ((self.from_query is None)
-          or (self.from_query.rounding_amount is None
-              and self.from_query.rounding_unit is None)):
-        return
-      self.rounding_amount = self.from_query.rounding_amount
-      self.rounding_unit = self.from_query.rounding_unit
-      if self.rounding_amount is None:
-        self.rounding_amount = 1.0
-      if self.rounding_unit is None:
-        self.rounding_unit = UNIT_HOUR
-
-      _raise('not implemented')
+      return self.totals.to_string(flat=self.flat,
+                                   round_to_minutes=self.round_to_minutes)
 
     def description_str(self):
       lines = []
@@ -2283,11 +2309,17 @@ class Timelog(Notify):
           return phrase_unit
       return None
 
-    def nr_arg(self):
+    def minutes_arg(self):
       minutes = str2mins(self.token, raise_on_err=False)
       if minutes is None:
         return None
-      return float(minutes) / 60
+      return float(minutes)
+
+    def nr_arg(self):
+      m = self.minutes_arg()
+      if m is None:
+        return None
+      return m / 60
 
     def namelist_arg(self):
       return self.token.split(',')
@@ -2350,17 +2382,9 @@ class Timelog(Notify):
           self.next_arg()
           self.only = self.namelist_arg()
         elif 'round'.startswith(self.token):
-          self.superfluous("'round' argument",
-                           self.rounding_amount or self.rounding_unit)
+          self.superfluous("'round' argument", self.round_to_minutes)
           self.expect_arg('rounding step')
-          self.rounding_amount = self.nr_arg()
-          if self.rounding_amount is not None:
-            self.next_arg()
-          self.rounding_unit = self.unit_arg()
-          if not self.rounding_unit:
-            self.prev_arg()
-          if (self.rounding_amount is None) and (self.rounding_unit is None):
-            _raise("Invalid arguments to 'round'")
+          self.round_to_minutes = self.minutes_arg()
         else:
           date = None
           nr = None
@@ -2399,8 +2423,7 @@ class Timelog(Notify):
     include_start = query.include_start
     include_end = query.include_end
     snap_to_calendar = query.snap_to_calendar
-    rounding_amount = query.rounding_amount
-    rounding_unit = query.rounding_unit
+    round_to_minutes = query.round_to_minutes
     flat = query.flat
 
     only = None
@@ -2470,9 +2493,7 @@ class Timelog(Notify):
     query_result.amount = amount
     query_result.snap_to_calendar = snap_to_calendar
     query_result.flat = flat
-
-    if rounding_amount:
-      query_result.round(rounding_amount, rounding_unit)
+    query_result.round_to_minutes = round_to_minutes
 
     return query_result
 
@@ -3046,6 +3067,7 @@ class TimCmdline:
   def cmd_totals(self, *args):
     i = 0
     selected = None
+    round_to_minutes = None
     flat = False
     while i < len(args):
       arg = args[i]
@@ -3054,6 +3076,11 @@ class TimCmdline:
         if not (i < len(args)):
           _raise("expecting a list of names after 'only'")
         selected = args[i].split(',')
+      elif 'round'.startswith(arg):
+        i += 1
+        if not (i < len(args)):
+          _raise("expecting a rounding duration after 'round'")
+        round_to_minutes = str2mins(args[i])
       elif '-f' == arg:
         flat = True
       else:
@@ -3076,9 +3103,13 @@ class TimCmdline:
         return
 
     if selected:
-      _msg('Totals, selection:\n', totals.to_string(flat, selected))
+      m = 'Totals, selection:\n'
     else:
-      _msg('Totals:\n', totals.to_string(flat))
+      m = 'Totals:\n'
+    _msg(m, totals.to_string(flat=flat,
+                             selected=selected,
+                             round_to_minutes=round_to_minutes))
+
 
   def cmd_log(self, *args):
     query_result = self.tim.timelog.run_query_phrase(args)
@@ -3086,8 +3117,9 @@ class TimCmdline:
     if not query_result.timings:
       _warn('No entries found.')
       return
+    rounder = MinutesRounder(query_result.round_to_minutes)
     for entry in query_result.timings:
-      _msg(str(entry))
+      _msg(entry.to_string(rounder=rounder))
     _msg(query_result.totals_string())
 
   def cmd_fix(self, *args):
