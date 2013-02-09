@@ -1039,19 +1039,14 @@ class State:
 
 class MinutesRounder:
   def __init__(self, round_to_minutes):
-    if (not round_to_minutes) or (round_to_minutes == 1):
-      self.enabled = False
-      return
+    assert(int(round_to_minutes) != 0)
     self.round_to_minutes = round_to_minutes
-    self.enabled = True
     self.clear_surplus()
 
   def clear_surplus(self):
-    self.surplus = {}
+    self.surplus = Totals()
 
   def round(self, name, minutes):
-    if not self.enabled:
-      return minutes
     minutes = int(minutes)
     # first add previous surplus, if any. Then do the rounding, and
     # then remember the new surplus for this name.
@@ -1102,10 +1097,22 @@ class Totals:
     self.modified = True
 
   def add_time(self, name, minutes):
-    self.entries[name] = (self.get(name) or 0) + minutes
-    self.modified = True
+    self.set_time(name, (self.get(name) or 0) + minutes)
+
+  def set_time(self, name, minutes):
+    'override current total and reset the name to <minutes>'
+    was = self.get(name)
+    if minutes is None:
+      if was is not None:
+        del self.entries[name]
+        self.modified = True
+      return
+    if was != minutes:
+      self.entries[name] = minutes
+      self.modified = True
 
   def add_timing(self, timing):
+    'add minutes from a Timing instance.'
     self.add_time(timing.name, timing.minutes)
 
   def remove_timing(self, timing):
@@ -1120,15 +1127,20 @@ class Totals:
   def __iter__(self, *args):
     return self.entries.__iter__(*args)
 
+  def __setitem__(self, *args):
+    return self.entries.__setitem__(*args)
+  def __getitem__(self, *args):
+    return self.entries.__getitem__(*args)
+
   def __eq__(self, other):
     return self.entries.__eq__(other.entries)
   def __ne__(self, other):
     return self.entries.__ne__(other.entries)
 
   def is_empty(self, only=None):
-    if not only:
-      return not self.entries
-    return not [item for item in self.entries if item in only]
+    if only:
+      return not (self.entries.keys() & only)
+    return not self.entries
 
   def deserialize(self, line):
     match = Regex.match(TOTALS_LINE_RE, line)
@@ -1203,7 +1215,7 @@ class Totals:
           seen.add(name)
 
     items = sorted(items)
-    if rounder and rounder.enabled:
+    if rounder:
       if clear_rounder:
         rounder.clear_surplus()
       for item in items:
@@ -1451,6 +1463,24 @@ class Totals:
     if modified:
       self.modified = True
     return modified
+
+def diff_totals(t_is, t_shouldbe):
+  diff = []
+  for name, minutes in sorted(t_is.iteritems()):
+    shouldbe_minutes = t_shouldbe.get(name)
+    if (shouldbe_minutes != minutes) and not (
+         (shouldbe_minutes or 0) == (minutes or 0)):
+      if shouldbe_minutes is None:
+        shouldbe_str = ', but there is no prior record of that name.'
+      else:
+        shouldbe_str = ', should be ' + mins2str(shouldbe_minutes)
+      diff.append(msgs2str(" - '", name, "' is ", mins2str(minutes),
+                           shouldbe_str))
+  for name,minutes in sorted(t_shouldbe.iteritems()):
+    if not name in t_is:
+      diff.append(msgs2str(" - '", name, "' is missing, should be ",
+                           mins2str(minutes)))
+  return diff
 
 
 class Timelog(Notify):
@@ -1979,24 +2009,6 @@ class Timelog(Notify):
     fixed = 0
     unfixed = 0
 
-    def diff_totals(t_is, t_shouldbe):
-      diff = []
-      for name, minutes in sorted(t_is.iteritems()):
-        shouldbe_minutes = t_shouldbe.get(name)
-        if (shouldbe_minutes != minutes) and not (
-             (shouldbe_minutes or 0) == (minutes or 0)):
-          if shouldbe_minutes is None:
-            shouldbe_str = ', but there is no prior record of that name.'
-          else:
-            shouldbe_str = ', should be ' + mins2str(shouldbe_minutes)
-          diff.append(msgs2str(" - '", name, "' is ", mins2str(minutes),
-                               shouldbe_str))
-      for name,minutes in sorted(t_shouldbe.iteritems()):
-        if not name in t_is:
-          diff.append(msgs2str(" - '", name, "' is missing, should be ",
-                               mins2str(minutes)))
-      return diff
-
     prev_totals = None
 
     for yearnr in yearnrs:
@@ -2105,9 +2117,8 @@ class Timelog(Notify):
       self.rounder = None
       self.flat = None
       self.only = None
+      self.show_surplus = None
 
-    def totals_string(self):
-      return self.totals.to_string(flat=self.flat, rounder=self.rounder)
 
     def description_str(self):
       lines = []
@@ -2218,6 +2229,7 @@ class Timelog(Notify):
         if not l:
           break
 
+        # does it start with a number? if yes it's a year nr.
         y_end = 0
         while (y_end < l) and s[y_end].isdigit():
           y_end += 1
@@ -2227,6 +2239,7 @@ class Timelog(Notify):
           s = s[y_end:]
           continue
 
+        # does it start with a week-of-year identifier? 
         if s.startswith('-W'):
           w = int(s[2:])
           break
@@ -2234,23 +2247,32 @@ class Timelog(Notify):
           w = int(s[1:])
           break
 
+        # does it start with a dash, implying current year?
         if s.startswith('-'):
+          # get all numbers preceded by a dash. It's a '-MM-DD' date part.
           parts = s[1:].split('-')
+          # if s was '-01-02cruft', the last part is now '02cruft'. Split off
+          # cruft.
           nrs = parts[:-1]
+          # count the digits
           last_part_digits = 0
           last_part = parts[-1]
           l = len(last_part)
           while (last_part_digits < l) and last_part[last_part_digits].isdigit():
             last_part_digits += 1
+          if not last_part_digits:
+            _raise("Expected a number after dash '-' in date: '", string, "'")
+          # the number gets appended to the numbers, and the string continues
+          # with what was called 'cruft' above.
           nrs.append(last_part[:last_part_digits])
           s = last_part[last_part_digits:]
 
-          l = len(nrs)
-          if l >= 1:
+          ln = len(nrs)
+          if ln >= 1:
             mo = int(nrs[0])
-            if l == 2:
+            if ln == 2:
               d = int(nrs[1])
-            elif l > 2:
+            elif ln > 2:
               _raise("Too many dashes '-' in date: '", string, "'")
           continue
 
@@ -2392,6 +2414,8 @@ class Timelog(Notify):
           self.unit = arg_unit
         elif '-f' == self.token:
           self.flat = True
+        elif '-s' == self.token:
+          self.show_surplus = True
         elif 'exactly'.startswith(self.token):
           self.superfluous("'exactly' keyword", self.snap_to_calendar)
           self.snap_to_calendar = False
@@ -3169,19 +3193,39 @@ class TimCmdline:
     _msg(m, totals.to_string(flat=flat,
                              only=only,
                              rounder=rounder))
-    if show_surplus and rounder and rounder.enabled:
-      _msg(m, rounder.surplus.to_string(flat=flat, omit_zero=True))
+    if show_surplus and rounder:
+      _msg('Rounding surplus:\n',
+           rounder.surplus.to_string(flat=flat, omit_zero=True))
 
 
   def cmd_log(self, *args):
+    i = 0
+    show_surplus = '-s' in args
+    flat = '-f' in args
+    args = [arg for arg in args if arg not in ('-s', '-f')]
+
     query_result = self.tim.timelog.run_query_phrase(args)
     _msg(query_result.description_str())
     if not query_result.timings:
       _warn('No entries found.')
       return
+    rounder = query_result.rounder
+    if rounder:
+      rounder.clear_surplus()
     for entry in query_result.timings:
-      _msg(entry.to_string(rounder=query_result.rounder))
-    _msg(query_result.totals_string())
+      _msg(entry.to_string(rounder=rounder))
+    if rounder:
+      surplus1 = rounder.surplus
+    _msg('Sum of above timings:\n',
+         query_result.totals.to_string(flat=flat, rounder=rounder))
+    if rounder:
+      diff = diff_totals(rounder.surplus, surplus1)
+      if diff:
+        _debug("DIFF of SURPLUS:\n", '\n'.join(diff))
+    if show_surplus and rounder:
+      _msg('Rounding surplus:\n',
+           rounder.surplus.to_string(flat=flat, omit_zero=True))
+      
 
   def cmd_fix(self, *args):
     clear_initial_totals = False
