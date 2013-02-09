@@ -222,6 +222,7 @@ tim log year 2013
 #O 2013-01-04 12:00 A.n 1
 #O 2013-01-05 12:00 A.n.o 1
 #O 2013-01-10 00:00 i -2 # tickoff
+#O Sum of above timings:
 #O   3 A
 #O     1 ^
 #O     2 n

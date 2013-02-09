@@ -10,6 +10,7 @@ tim log year 2012 only jan,mar
 #O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
 #O 2012-01-11 12:00 jan 1:01
 #O 2012-03-13 12:00 mar 0:33
+#O Sum of above timings:
 #O   1:01 jan
 #O   0:33 mar
 #O  =====
@@ -20,6 +21,7 @@ tim log year 2012 only apr,may
 #O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
 #O 2012-04-13 12:00 group.apr 0:33
 #O 2012-05-13 12:00 group.may 0:33
+#O Sum of above timings:
 #O   1:06 group
 #O        0:33 apr
 #O        0:33 may
@@ -31,6 +33,7 @@ tim log year 2012 only group.*
 #O Sunday 2012-01-01 00:00 ... Monday 2012-12-31 23:59:
 #O 2012-04-13 12:00 group.apr 0:33
 #O 2012-05-13 12:00 group.may 0:33
+#O Sum of above timings:
 #O   1:06 group
 #O        0:33 apr
 #O        0:33 may
@@ -43,6 +46,7 @@ tim log year 2012 only group*
 #O 2012-04-13 12:00 group.apr 0:33
 #O 2012-05-13 12:00 group.may 0:33
 #O 2012-06-13 12:00 group 0:33
+#O Sum of above timings:
 #O   1:39 group
 #O        0:33 ^
 #O        0:33 apr

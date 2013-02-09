@@ -28,6 +28,7 @@ tim log
 #O DATE foo 0:01
 #O DATE foo 0:01
 #O DATE bar 0:01
+#O Sum of above timings:
 #O   0:01 bar
 #O   0:02 foo
 #O  =====

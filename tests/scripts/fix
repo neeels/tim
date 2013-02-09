@@ -6,6 +6,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 01:00 lap 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 over
 #O  ==
@@ -24,6 +25,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 01:00 lap 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 over
 #O  ==
@@ -36,6 +38,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 01:00 lap 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 over
 #O  ==
@@ -54,6 +57,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 02:00 lap 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 over
 #O  ==
@@ -66,6 +70,7 @@ tim log year 2013
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 02:00 lap 2
 #O 2013-01-01 01:00 lap2 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 lap2
 #O   2 over
@@ -93,6 +98,7 @@ tim log year 2013
 #O 2013-01-01 00:00 over 2
 #O 2013-01-01 02:00 lap2 2
 #O 2013-01-01 04:00 lap 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 lap2
 #O   2 over
@@ -107,6 +113,7 @@ tim log year 2013
 #O 2013-01-01 02:00 lap2 2
 #O 2013-01-01 04:00 lap 2
 #O 2013-01-01 01:00 lap3 2
+#O Sum of above timings:
 #O   2 lap
 #O   2 lap2
 #O   2 lap3
@@ -139,6 +146,7 @@ tim log year 2013
 #O 2013-01-01 02:00 lap3 1
 #O 2013-01-01 03:00 lap2 1
 #O 2013-01-01 04:00 lap 2
+#O Sum of above timings:
 #O   2 lap
 #O   1 lap2
 #O   1 lap3

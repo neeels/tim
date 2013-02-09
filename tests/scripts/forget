@@ -27,6 +27,7 @@ tim log 3 y u 2013 -f | tee original_state
 #O 2013-01-05 12:00 a 3
 #O 2013-01-05 16:00 e.f 1
 #O 2013-01-06 13:00 c.d 2
+#O Sum of above timings:
 #O      6:30 a
 #O      2    b
 #O      3    c.d
@@ -58,6 +59,7 @@ tim log 3 years until 2013
 #O 2013-01-04 12:00 e.f.g 1
 #O 2013-01-05 16:00 e.f 1
 #O 2013-01-06 13:00 c.d 2
+#O Sum of above timings:
 #O   2 b
 #O   3 c
 #O     3 d
@@ -90,6 +92,7 @@ tim log year 2013
 #O 2013-01-02 12:00 b 1
 #O 2013-01-04 12:00 e.f.g 1
 #O 2013-01-05 16:00 e.f 1
+#O Sum of above timings:
 #O   1 b
 #O   2 e
 #O     2 f
@@ -118,6 +121,7 @@ tim log year 2013 -f
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 b 1
 #O 2013-01-04 12:00 e.f.g 1
+#O Sum of above timings:
 #O      1    b
 #O      1    e.f.g
 #O     =====
@@ -136,6 +140,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 b 1
 #O 2013-01-04 12:00 e.f.g 1
+#O Sum of above timings:
 #O   1 b
 #O   1 e
 #O     1 f
@@ -187,6 +192,7 @@ tim log year 2013 -f
 #O 2013-01-02 13:00 c.d 1
 #O 2013-01-04 12:00 e.f.g 1
 #O 2013-01-06 13:00 c.d 2
+#O Sum of above timings:
 #O      1    b
 #O      3    c.d
 #O      1    e.f.g
@@ -225,6 +231,7 @@ tim log 3 y u 2013 -f
 #O 2013-01-04 12:00 e.f.g 1
 #O 2013-01-05 12:00 a 3
 #O 2013-01-06 13:00 c.d 2
+#O Sum of above timings:
 #O      6:30 a
 #O      2    b
 #O      3    c.d
@@ -278,6 +285,7 @@ tim log 3 y u 2013 -f | tee restored_state
 #O 2013-01-05 12:00 a 3
 #O 2013-01-05 16:00 e.f 1
 #O 2013-01-06 13:00 c.d 2
+#O Sum of above timings:
 #O      6:30 a
 #O      2    b
 #O      3    c.d

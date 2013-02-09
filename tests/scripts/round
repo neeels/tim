@@ -11,6 +11,7 @@ tim log y 2013
 #O DATE bar 1:07
 #O DATE foo 1:11
 #O DATE bar 1:07
+#O Sum of above timings:
 #O   2:14 bar
 #O   2:22 foo
 #O  =====
@@ -23,6 +24,7 @@ tim log y 2013 round 0:15
 #O DATE bar 1
 #O DATE foo 1
 #O DATE bar 1:15
+#O Sum of above timings:
 #O   2:15 bar
 #O   2:15 foo
 #O  =====

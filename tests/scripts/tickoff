@@ -8,6 +8,7 @@ tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-01 00:00 a -10 # tickoff
+#O Sum of above timings:
 #O  -10 a
 #O  ===
 #O  -10
@@ -36,6 +37,7 @@ tim log year 2013
 #O 2013-01-01 00:00 a -10 # tickoff
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
+#O Sum of above timings:
 #O  -4 a
 #O     -10 ^
 #O       3 b
@@ -80,6 +82,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
+#O Sum of above timings:
 #O   6 a
 #O     3 b
 #O     3 c
@@ -123,6 +126,7 @@ tim log year 2013
 #O 2013-02-01 13:00 a.c -1 # tickoff
 #O 2013-02-01 14:00 a.b -2 # tickoff
 #O 2013-02-01 15:00 a -3 # tickoff
+#O Sum of above timings:
 #O  -1 a
 #O     -3 ^
 #O      1 b
@@ -153,6 +157,7 @@ tim log year 2013
 #O 2013-02-01 12:00 a.c.d -1 # tickoff
 #O 2013-02-01 13:00 a.c -1 # tickoff
 #O 2013-02-01 14:00 a.b -2 # tickoff
+#O Sum of above timings:
 #O   2 a
 #O     1 b
 #O     1 c
@@ -181,6 +186,7 @@ tim log year 2013
 #O 2013-01-03 12:00 a.c.d 3
 #O 2013-02-01 12:00 a.c.d -1 # tickoff
 #O 2013-02-01 13:00 a.c -1 # tickoff
+#O Sum of above timings:
 #O   4 a
 #O     3 b
 #O     1 c
@@ -207,6 +213,7 @@ tim log year 2013
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
 #O 2013-02-01 12:00 a.c.d -1 # tickoff
+#O Sum of above timings:
 #O   5 a
 #O     3 b
 #O     2 c
@@ -231,6 +238,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
+#O Sum of above timings:
 #O   6 a
 #O     3 b
 #O     3 c
