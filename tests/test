@@ -559,20 +559,20 @@ class TestRunner:
       self.log('Weird. ', l_run, ' tests run, but failed tests (',
                l_failed, ') + passed tests (', l_passed, ') + updated tests (',
                l_updated, ') = ', l_failed + l_passed + l_updated)
-    self.log('\n tests run: ', l_run)
+    self.log('\ntests run: ', l_run)
     if l_updated:
       if l_updated == l_run:
-        self.log('** all updated.')
+        self.log('* all updated.')
       else:
-        self.log('** updated: ', l_updated, ' -- ',
+        self.log('* updated: ', l_updated, ' -- ',
                  ' '.join([str(t) for t in self.tests_updated]))
     if l_passed:
       if l_passed == l_run:
         self.log('all passed.')
       else:
-        self.log('    passed: ', l_passed)
+        self.log('   passed: ', l_passed)
     if l_failed:
-      self.log('    FAILED: ', l_failed, ' -- ',
+      self.log('** FAILED: ', l_failed, ' -- ',
                ' '.join([str(t) for t in self.tests_failed]))
       return 1
     return 0
