@@ -402,6 +402,7 @@ class TestRunner:
                         if not l.startswith('####### ')])
       if err:
         result.extend([ (TestRunner.ERR_LINE + l) for l in err ])
+    result.append('') # final newline
     write_file(path, '\n'.join(result))
 
   def run(self, test_name):
