@@ -158,6 +158,7 @@ class TestRunner:
     self.tests_run = []
     self.tests_failed = []
     self.tests_passed = []
+    self.tests_updated = []
     self.work_dir = None
     
   def get_work_dir(self):
@@ -462,10 +463,10 @@ class TestRunner:
         continue
 
       try:
-        if self.verbose and not self.do_update:
+        if self.verbose:
           self.log_cmd(cmd, None, None)
         stdout, stderr = run_shell_script(cmd, env, cwd=test_work)
-        if self.verbose and not self.do_update:
+        if self.verbose:
           self.log_cmd(None, stdout, stderr)
         if expect_stdout is None:
           if stderr:
@@ -498,8 +499,8 @@ class TestRunner:
         if this_line_failed:
           if self.do_update:
             test[i] = (line, cmd, stdout, stderr)
-            if self.verbose:
-              self.log_cmd(line, stdout, stderr)
+            self.log('** Updating test ', test_name, ':')
+            self.log_cmd(line, stdout, stderr)
           else:
             break
       except Exception as e:
@@ -514,11 +515,13 @@ class TestRunner:
       except OSError as e:
         self.log('*** Failed to remove directory: ', test_work)
 
-    if self.do_update:
-      if failures:
-        self.log("*** Updating test '", test_name, "'")
-        self.save_test(test_name, test)
-    elif failures:
+    if self.do_update and failures:
+      self.save_test(test_name, test)
+      self.log("** Updated test '", test_name, "'")
+      self.tests_updated.append(test_name)
+      return True
+
+    if failures:
       last_linenr = None
       for i, line, failmsg in failures:
         if i != last_linenr:
@@ -528,8 +531,8 @@ class TestRunner:
         self.log('*** ', failmsg)
       self.tests_failed.append(test_name)
       return False
-    else:
-      self.log('pass: \'', test_name, "'")
+
+    self.log('pass: \'', test_name, "'")
     self.tests_passed.append(test_name)
     return True
 
@@ -551,18 +554,25 @@ class TestRunner:
     l_run = len(self.tests_run)
     l_failed = len(self.tests_failed)
     l_passed = len(self.tests_passed)
-    if l_run != (l_passed + l_failed):
+    l_updated = len(self.tests_updated)
+    if l_run != (l_passed + l_failed + l_updated):
       self.log('Weird. ', l_run, ' tests run, but failed tests (',
-               l_failed, ') + passed tests (', l_passed, ') = ',
-               l_failed + l_passed)
-    self.log('\ntests run: ', l_run)
+               l_failed, ') + passed tests (', l_passed, ') + updated tests (',
+               l_updated, ') = ', l_failed + l_passed + l_updated)
+    self.log('\n tests run: ', l_run)
+    if l_updated:
+      if l_updated == l_run:
+        self.log('** all updated.')
+      else:
+        self.log('** updated: ', l_updated, ' -- ',
+                 ' '.join([str(t) for t in self.tests_updated]))
     if l_passed:
       if l_passed == l_run:
         self.log('all passed.')
       else:
-        self.log('   passed: ', l_passed)
+        self.log('    passed: ', l_passed)
     if l_failed:
-      self.log('   FAILED: ', l_failed, ' -- ',
+      self.log('    FAILED: ', l_failed, ' -- ',
                ' '.join([str(t) for t in self.tests_failed]))
       return 1
     return 0
