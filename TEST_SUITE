@@ -107,10 +107,23 @@ Keyword Directives
 
 A keyword directive must stand alone on a line.
 
-VERBATIM DATES  switch off date replacement with the DATE keyword. Only useful
-                for updating tests (-u option).
+WARP TO YYYY-MM-DD
+WARP TO YYYY-MM-DD hh:mm
+  artificially set the current time to the given date (and time). Without a
+  time, 0:00 is used. 'tim' will internally use this date-time whenever it
+  asks for the system's current time (except for the timing daemon, which
+  would break if the time stayed fixed). Of course, other programs and the
+  system clock are entirely unaffected by this option.
+WARP TO PRESENT
+  remove any previous time warps.
 
-MANGLED DATES   return to the default of replacing dates with the 'DATE'.
+MANGLE DATES
+  switch on date replacement with the DATE keyword. Only useful so that when
+  updating a test (-u option), the expected output is kept with 'DATE'
+  placeholders in it.  Note: With the 'WARP TO' keyword, date mangling becomes
+  pretty much obsolete.
+VERBATIM DATES
+  return to the default of keeping dates as-are in the program output.
 
 
 Maintaining Tests

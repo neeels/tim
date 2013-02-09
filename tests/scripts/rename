@@ -3,14 +3,13 @@ tim rename xxx yyy
 
 -tim new a b c d.e f.x g.x h.x i.j i.k i.l i.m.n.o
 
-VERBATIM DATES
 -tim forge 2013-01-01 12:00 a 1
 -tim forge 2013-01-02 12:00 d 1
 -tim forge 2013-01-02 13:00 d.e 1
 -tim forge 2013-01-03 12:00 f.x 1
 -tim forge 2013-01-04 12:00 i.m.n 1
 -tim forge 2013-01-05 12:00 i.m.n.o 1
-WARP TO DATE 2013-01-10
+WARP TO 2013-01-10
 -tim tickoff i 2
 
 tim rename xxx yyy

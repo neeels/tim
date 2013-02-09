@@ -1,4 +1,3 @@
-VERBATIM DATES
 -tim forge 2011-01-01 12:00 a :30
 -tim forge 2011-01-02 12:00 b 1
 -tim forge 2013-01-01 12:00 a 1
@@ -46,7 +45,7 @@ tim totals -f | tee -a original_state
 #O     =====
 #O    +13:30 
 
-WARP TO DATE 2013-02-01
+WARP TO 2013-02-01
 tim forget a
 #O forgot about 'a'
 
@@ -81,7 +80,7 @@ tim totals
 #O  ==
 #O  +7
 
-WARP TO DATE 2013-02-01 1
+WARP TO 2013-02-01 1
 tim forget "c.d"
 #O forgot about 'c.d'
 
@@ -110,7 +109,7 @@ tim totals
 #O  ==
 #O  +4
 
-WARP TO DATE 2013-02-01 2
+WARP TO 2013-02-01 2
 tim forget e.f
 #O forgot about 'e.f'
 
@@ -203,7 +202,7 @@ tim totals -f
 #O     =====
 #O     +6    
 
-WARP TO DATE 2013-02-01 5
+WARP TO 2013-02-01 5
 tim recall forgotten/a__*
 #O ** sorted entries in 2011
 #O ** sorted entries in 2013
@@ -242,7 +241,7 @@ tim totals -f
 #O     =====
 #O    +12:30 
 
-WARP TO DATE 2013-02-01 6
+WARP TO 2013-02-01 6
 tim recall forgotten/e.f__*
 #E *** cannot recall timings, name already exists: 'e.f'
 
@@ -262,7 +261,7 @@ tim totals -f
 #O     =====
 #O    +13:30 
 
-WARP TO DATE 2013-02-01 10
+WARP TO 2013-02-01 10
 tim forget c
 #O forgot about 'c'
 

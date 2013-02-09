@@ -1,7 +1,6 @@
-VERBATIM DATES
 -tim new a.b a.c a.c.d e
 
-WARP TO DATE 2013-01-01
+WARP TO 2013-01-01
 tim tickoff a 10
 #O ticked off: 2013-01-01 00:00 a -10 # tickoff
 
@@ -22,11 +21,11 @@ tim totals
 #O  ===
 #O  -10
 
-WARP TO DATE 2013-01-02 15
+WARP TO 2013-01-02 15
 -tim b
 -tim =3
 -tim stop
-WARP TO DATE 2013-01-03 15
+WARP TO 2013-01-03 15
 -tim d
 -tim =3
 -tim stop
@@ -90,16 +89,16 @@ tim log year 2013
 tim fix
 #O All correct.
 
-WARP TO DATE 2013-02-01 12
+WARP TO 2013-02-01 12
 tim tickoff d 1
 #O ticked off: 2013-02-01 12:00 a.c.d -1 # tickoff
-WARP TO DATE 2013-02-01 13
+WARP TO 2013-02-01 13
 tim tickoff c 1
 #O ticked off: 2013-02-01 13:00 a.c -1 # tickoff
-WARP TO DATE 2013-02-01 14
+WARP TO 2013-02-01 14
 tim tickoff b 2
 #O ticked off: 2013-02-01 14:00 a.b -2 # tickoff
-WARP TO DATE 2013-02-01 15
+WARP TO 2013-02-01 15
 tim tickoff a 3
 #O ticked off: 2013-02-01 15:00 a -3 # tickoff
 tim fix

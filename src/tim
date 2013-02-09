@@ -46,7 +46,7 @@ Command line usage:
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
   tim stop [-- <comment>]
   tim stopped [-]<HH:MM> [-- <comment>]
-  tim totals [round <duration>] [only <name>[.*][,...]] [-f]
+  tim totals [round <duration>] [only <name>[.*][,...]] [-f] [-s]
   tim log [<nr>] [hours|days|weeks|months|years] \
           [from|until|before|after <date>] \
           [sum [<nr>] hours|days|weeks|months|years] \
@@ -194,8 +194,8 @@ time instead.
 To change the starting time without stopping the timer, see 'tim help adjust'.
 
 --- tim totals ---
-Print the current timing totals of hours spent vs. hours ticked-off on a
-per-group and per-project basis.
+Print the current timing totals. Shows hours spent, less hours ticked-off, on
+a per-group and per-project basis.
 
 This adds timings of all names in a group up to the group's own total. So if
 you have employer 'yoyo' and projects 'foo' and 'bar', you will start and stop
@@ -205,12 +205,39 @@ specific projects. The timings for 'yoyo' become negative. But in the totals,
 'foo' and 'bar' are added to its parent 'yoyo', so that 'yoyo' reaches zero
 when all worked hours have been ticked off.
 
-  -l <name>[,<name>[,...]]
+Options:
+
+  only <name>[,<name>[,...]]
     Limit the listing to the given names.
+
+  round <duration>
+    Show timings rounded to <duration>. For example, 'round 0:15' rounds
+    timings to the closest quarter-of-an-hour (1:07 becomes 1, 1:08 becomes
+    1:15). While rounding, a surplus sum is made per name, which will
+    influence subsequent roundings. This makes sure that the sum of minutes
+    gained or lost by rounding stays within reasonable bounds. So, any minutes
+    lost because of rounding will be remembered and given back to you at the
+    next upcoming rounding (and vice versa, of course).
+    For example, when rounding the following timings to a full hour:
+      1:10; 1:10; 1:10; 1:50; 1:50
+    with 'round 1' (or 'round 1:00'), these become:
+      1:00; 1:00; 2:00; 1:00; 2:00
+    This makes sense when you look at the surplus added up in the background:
+      1:10  round down to 1:00, keep +0:10 surplus.
+      1:10  add surplus = 1:20. Round down to 1:00, now + 0:20 surplus.
+      1:10  + 0:20 = 1:30. Round *up* to 2:00, keep - 0:30 surplus.
+      1:50  - 0:30 is 1:20. Round down to 1:00, keep + 0:20 surplus.
+      1:50  + 0:20 is 2:10. Round down to 2:00, keep + 0:10 surplus.
+    Show final surplus with the -s option.
 
   -f
     Flat. Show timings separately for each group, do not add them up to the
     parent groups. This might help to examine ticked off hours.
+
+  -s
+    Show surplus. If you passed a rounding argument, the rounding will
+    probably have a bit too many or too few minutes after all timings have
+    been rounded. This option shows these final surplus minutes.
 
 To show how the totals came about, see 'tim help log'. To fix the totals if
 they got out of sync (because you edited the timelogs?), see 'tim help fix'.
@@ -1009,6 +1036,7 @@ class State:
       return State.REASON_DAEMON_EXITED
     return None
 
+
 class MinutesRounder:
   def __init__(self, round_to_minutes):
     if (not round_to_minutes) or (round_to_minutes == 1):
@@ -1016,6 +1044,9 @@ class MinutesRounder:
       return
     self.round_to_minutes = round_to_minutes
     self.enabled = True
+    self.clear_surplus()
+
+  def clear_surplus(self):
     self.surplus = {}
 
   def round(self, name, minutes):
@@ -1094,10 +1125,10 @@ class Totals:
   def __ne__(self, other):
     return self.entries.__ne__(other.entries)
 
-  def is_empty(self, selected=None):
-    if not selected:
+  def is_empty(self, only=None):
+    if not only:
       return not self.entries
-    return not [item for item in self.entries if item in selected]
+    return not [item for item in self.entries if item in only]
 
   def deserialize(self, line):
     match = Regex.match(TOTALS_LINE_RE, line)
@@ -1138,25 +1169,43 @@ class Totals:
     self.entries = {}
     self.modified = True
 
-  def to_string(self, flat=False, selected=None, round_to_minutes=None):
+  def to_string(self, flat=False, only=None, omit_zero=False, rounder=None,
+                clear_rounder=True):
+    '''flat: if True, each line shows a full name, all in one column.
+             If False, indents subgroups.
+       only: A list of project names (str). If None or empty, all names
+             are shown. If nonempty, only the names that are in <only>
+             are shown.
+       omit_zero: if True, only nonzero entries are shown.
+       rounder: a MinutesRounder(<nr_of_minutes_to_round_to>) instance.
+             If None, timings are shown exactly as they are. If a rounder
+             instance is passed, its round(name, minutes) function will
+             be used to display timings rounded to, e.g., quarter hours when
+             you pass a MinutesRounder(15).
+       clear_rounder: If you want to continue a previous surplus, pass
+             False here. Otherwise, the rounder instance is cleared of
+             previous surplus, to have clean rounding within these totals.
+    '''
     items = []
     seen = set()
 
-    rounder = MinutesRounder(round_to_minutes)
-
     for name, minutes in self.iteritems():
-      if (not selected) or (name in selected):
+      if omit_zero and minutes == 0:
+        continue
+      if (not only) or (name in only):
         items.append([name, minutes])
         seen.add(name)
     
-    if selected:
-      for name in selected:
+    if only and not omit_zero:
+      for name in only:
         if not name in seen:
           items.append([name, 0])
           seen.add(name)
 
     items = sorted(items)
-    if rounder.enabled:
+    if rounder and rounder.enabled:
+      if clear_rounder:
+        rounder.clear_surplus()
       for item in items:
         name, minutes = item
         item[1] = rounder.round(name, minutes)
@@ -2053,12 +2102,12 @@ class Timelog(Notify):
       self.amount = None
       self.snap_to_calendar = None
       self.group = None
-      self.round_to_minutes = None
+      self.rounder = None
       self.flat = None
+      self.only = None
 
     def totals_string(self):
-      return self.totals.to_string(flat=self.flat,
-                                   round_to_minutes=self.round_to_minutes)
+      return self.totals.to_string(flat=self.flat, rounder=self.rounder)
 
     def description_str(self):
       lines = []
@@ -2423,14 +2472,6 @@ class Timelog(Notify):
     include_start = query.include_start
     include_end = query.include_end
     snap_to_calendar = query.snap_to_calendar
-    round_to_minutes = query.round_to_minutes
-    flat = query.flat
-
-    only = None
-    if query.only:
-      only = []
-      for name in query.only:
-        only.extend(self.get_totals().find_full_names(name))
 
     # defaults
     if (start is None) and (end is None):
@@ -2482,8 +2523,15 @@ class Timelog(Notify):
     elif start is None:
       start = date_subtract(amount, unit, end)
 
-    end -= 1e-6
+    end -= 1e-6 # show the last minute of the previous <unit>
       
+    only = None
+    if query.only:
+      only = []
+      totals = self.get_totals()
+      for name in query.only:
+        only.extend(totals.find_full_names(name))
+
     query_result = self.get_entries(start, end, include_start, include_end,
                                     only)
 
@@ -2492,8 +2540,11 @@ class Timelog(Notify):
     query_result.unit = unit
     query_result.amount = amount
     query_result.snap_to_calendar = snap_to_calendar
-    query_result.flat = flat
-    query_result.round_to_minutes = round_to_minutes
+    
+    query_result.flat = query.flat
+
+    if query.round_to_minutes:
+      query_result.rounder = MinutesRounder(query.round_to_minutes)
 
     return query_result
 
@@ -2518,6 +2569,8 @@ class Timelog(Notify):
     result.end = end_date
     result.include_start = include_start
     result.include_end = include_end
+    result.only = only
+
     while y <= end_year:
       year = self.get_timings_for_year(y)
       for timing in year.timings:
@@ -3066,8 +3119,9 @@ class TimCmdline:
 
   def cmd_totals(self, *args):
     i = 0
-    selected = None
+    only = None
     round_to_minutes = None
+    show_surplus = False
     flat = False
     while i < len(args):
       arg = args[i]
@@ -3075,12 +3129,14 @@ class TimCmdline:
         i += 1
         if not (i < len(args)):
           _raise("expecting a list of names after 'only'")
-        selected = args[i].split(',')
+        only = args[i].split(',')
       elif 'round'.startswith(arg):
         i += 1
         if not (i < len(args)):
           _raise("expecting a rounding duration after 'round'")
         round_to_minutes = str2mins(args[i])
+      elif '-s' == arg:
+        show_surplus = True
       elif '-f' == arg:
         flat = True
       else:
@@ -3092,23 +3148,29 @@ class TimCmdline:
       _msg('Nothing is recorded.')
       return
 
-    if selected:
+    if only:
       names = set()
-      for name in selected:
+      for name in only:
         names.update( totals.find_full_names(name) )
-      selected = names
+      only = names
 
-      if not selected:
+      if not only:
         _msg('Nothing is recorded for the given selection.')
         return
 
-    if selected:
+    if only:
       m = 'Totals, selection:\n'
     else:
       m = 'Totals:\n'
+
+    rounder = None
+    if round_to_minutes:
+      rounder = MinutesRounder(round_to_minutes)
     _msg(m, totals.to_string(flat=flat,
-                             selected=selected,
-                             round_to_minutes=round_to_minutes))
+                             only=only,
+                             rounder=rounder))
+    if show_surplus and rounder and rounder.enabled:
+      _msg(m, rounder.surplus.to_string(flat=flat, omit_zero=True))
 
 
   def cmd_log(self, *args):
@@ -3117,9 +3179,8 @@ class TimCmdline:
     if not query_result.timings:
       _warn('No entries found.')
       return
-    rounder = MinutesRounder(query_result.round_to_minutes)
     for entry in query_result.timings:
-      _msg(entry.to_string(rounder=rounder))
+      _msg(entry.to_string(rounder=query_result.rounder))
     _msg(query_result.totals_string())
 
   def cmd_fix(self, *args):

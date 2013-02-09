@@ -334,27 +334,36 @@ class TestRunner:
 
       self.flush()
 
+  WARP_TO = 'WARP TO '
+  PRESENT = 'PRESENT'
   def get_mangled_test(self, test_name, work_dir):
     test = self.get_test(test_name)
     mangled = []
 
     timewarp = None
     for line, cmd, out, err in test:
-      if cmd and cmd.startswith('WARP '):
-        if cmd.startswith('WARP TO DATE '):
-          timewarp = str2time(cmd[13:]) - time.time()
-        elif 'WARP TO PRESENT' == cmd:
-          timewarp = None
-        cmd = None
-      elif cmd and cmd.startswith('tim'):
-        timewarp_arg = ''
-        if timewarp:
-          timewarp_arg = '--timewarp=%d' % timewarp
-        cmd = ' '.join((self.tim_bin,
-                        '--base', "'" + work_dir + "'",
-                        timewarp_arg,
-                        cmd[3:]))
-      mangled.append((line, cmd, out, err))
+      try:
+        if cmd:
+          if cmd.startswith(TestRunner.WARP_TO):
+            to_str = cmd[len(TestRunner.WARP_TO):]
+            if TestRunner.PRESENT == to_str:
+              timewarp = None
+            else:
+              timewarp = str2time(to_str) - time.time()
+            cmd = None
+          elif cmd.startswith('tim'):
+            timewarp_arg = ''
+            if timewarp:
+              timewarp_arg = '--timewarp=%d' % timewarp
+            cmd = ' '.join((self.tim_bin,
+                            '--base', "'" + work_dir + "'",
+                            timewarp_arg,
+                            cmd[3:]))
+        mangled.append((line, cmd, out, err))
+      except Exception as e:
+        _raise("EXCEPTION while reading test '", test_name, "' on line\n  ",
+               line, '\n',
+               traceback.format_exc())
     return mangled
 
   def match(self, expect, actual):
@@ -416,8 +425,8 @@ class TestRunner:
           os.rmdir(test_work)
         except:
           pass
-      self.log("EXCEPTION while reading test '", test_name, "':\n",
-               traceback.format_exc() )
+      self.log(str(e),
+               "\nFAIL: '", test_name, "', while reading test script")
       self.tests_failed.append(test_name)
       return
 
@@ -438,7 +447,7 @@ class TestRunner:
 
 
     failures = []
-    verbatim_dates = False
+    verbatim_dates = True
     for i,entry in enumerate(test):
       line, cmd, expect_stdout, expect_stderr = entry
       if not cmd:
