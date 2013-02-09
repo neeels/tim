@@ -1,0 +1,36 @@
+-tim forge 2012-01-11 12:00 aaa +1:01
+-tim forge 2012-02-12 12:00 bbb +2:02
+-tim forge 2012-03-13 12:00 ccc +3:03
+
+tim totals round 1 -s
+#O Totals:
+#O   1 aaa
+#O   2 bbb
+#O   3 ccc
+#O  ==
+#O  +6
+#O Rounding surplus:
+#O   0:01 aaa
+#O   0:02 bbb
+#O   0:03 ccc
+#O  =====
+#O  +0:06
+
+-tim forge 2013-01-01 12:00 x 1:10
+-tim forge 2013-01-02 12:00 x 1:10
+-tim forge 2013-01-03 12:00 x 1:10
+-tim forge 2013-01-04 12:00 x 1:50
+-tim forge 2013-01-05 12:00 x 1:50
+
+tim totals round 1 -s only x
+#O Totals, selection:
+#O   7 x
+#O  ==
+#O  +7
+#O Rounding surplus:
+#O   0:10 x
+#O  =====
+#O  +0:10
+
+tim log year 2013 round 1 -s
+#E *** Invalid argument: '-s' (word 5)
