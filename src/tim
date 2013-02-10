@@ -653,13 +653,15 @@ def date_seconds_per(unit):
 
 # os file & process functions ################################################
 
-def write_file(path, contents, mkdirs=True):
+def write_file(path, contents, mkdirs=True, append_newline=True):
   if mkdirs:
     dirname = os.path.dirname(path)
     if not os.path.exists(dirname):
       os.makedirs(dirname)
   f = open(path, "w")
   f.write(contents)
+  if append_newline and not contents.endswith('\n'):
+    f.write('\n')
   f.flush()
   os.fsync(f.fileno())
   f.close()
@@ -1037,7 +1039,18 @@ class State:
     return None
 
 
-class MinutesRounder:
+def round_minutes(minutes, round_to=60):
+  assert(round_to != 0)
+  amount = float(minutes) / round_to
+  amount_frac, amount_int = math.modf(amount)
+  if amount_frac >= 0.5:
+    amount_int += 1
+  elif amount_frac <= -0.5:
+    amount_int -= 1
+  return int(amount_int * round_to)
+
+
+class SurplusRounder:
   def __init__(self, round_to_minutes):
     assert(int(round_to_minutes) != 0)
     self.round_to_minutes = round_to_minutes
@@ -1047,22 +1060,9 @@ class MinutesRounder:
     self.surplus = Totals()
 
   def round(self, name, minutes):
-    minutes = int(minutes)
-    # first add previous surplus, if any. Then do the rounding, and
-    # then remember the new surplus for this name.
-    minutes = float(minutes) + (self.surplus.get(name) or 0)
-    amount = minutes / self.round_to_minutes
-    amount_frac, amount_int = math.modf(amount)
-    if amount_frac >= 0.5:
-      amount_int += 1
-    elif amount_frac <= -0.5:
-      amount_int -= 1
-
-    rounded_minutes = int(amount_int * self.round_to_minutes)
-
-    surplus = minutes - rounded_minutes
-    if surplus != 0:
-      self.surplus[name] = surplus
+    accumulate = minutes + (self.surplus.get(name) or 0)
+    rounded_minutes = round_minutes(accumulate, self.round_to_minutes)
+    self.surplus[name] = accumulate - rounded_minutes
     return rounded_minutes
 
 
@@ -1189,11 +1189,11 @@ class Totals:
              are shown. If nonempty, only the names that are in <only>
              are shown.
        omit_zero: if True, only nonzero entries are shown.
-       rounder: a MinutesRounder(<nr_of_minutes_to_round_to>) instance.
+       rounder: a SurplusRounder(<nr_of_minutes_to_round_to>) instance.
              If None, timings are shown exactly as they are. If a rounder
              instance is passed, its round(name, minutes) function will
              be used to display timings rounded to, e.g., quarter hours when
-             you pass a MinutesRounder(15).
+             you pass a SurplusRounder(15).
        clear_rounder: If you want to continue a previous surplus, pass
              False here. Otherwise, the rounder instance is cleared of
              previous surplus, to have clean rounding within these totals.
@@ -1463,6 +1463,9 @@ class Totals:
     if modified:
       self.modified = True
     return modified
+
+  def get_grand_total_minutes(self):
+    return sum([minutes for minutes in self.entries.values()])
 
 def diff_totals(t_is, t_shouldbe):
   diff = []
@@ -2568,7 +2571,7 @@ class Timelog(Notify):
     query_result.flat = query.flat
 
     if query.round_to_minutes:
-      query_result.rounder = MinutesRounder(query.round_to_minutes)
+      query_result.rounder = SurplusRounder(query.round_to_minutes)
 
     return query_result
 
@@ -2703,7 +2706,7 @@ class TimedDirLock(Notify):
     return ':'.join((str(os.getpid()), str(self.id)))
 
   def locked_by_id(self):
-    return read_file(self.id_file)
+    return read_file(self.id_file).strip()
 
   def locked_by_pid(self):
     x = self.locked_by_id()
@@ -2813,7 +2816,7 @@ class Tim(Notify):
     'return the current state as on disk, no automatic fixing of stale status.'
     return State(self.state_file_path, read)
 
-  def get_status(self):
+  def verify_and_get_state(self):
     'fixes any stale timers, then returns the state.'
     with self.lock:
       state = self.get_state()
@@ -2976,7 +2979,7 @@ class Tim(Notify):
     for name in full_names:
       forgotten_name = '%s__%s' % (name, filename_timestamp())
       forgotten_path = j(self.forgotten_path, forgotten_name)
-      write_file(forgotten_path, '...\n')
+      write_file(forgotten_path, '...')
       if self.timelog.forget(name, forgotten_path):
         self.msg("forgot about '", name, "'")
       else:
@@ -2994,6 +2997,15 @@ class Tim(Notify):
     else:
       forgotten_path = j(self.forgotten_path, forgotten_id)
     return self.timelog.recall(forgotten_path, as_name, do_add)
+
+  def get_grand_total(self, state=None):
+    'return the grand total in minutes (including any running clock).'
+    if not state:
+      state = self.get_state()
+    grand_ttl = self.get_totals().get_grand_total_minutes()
+    if state.started:
+      grand_ttl += state.minutes
+    return grand_ttl
 
 # invocation via commandline #################################################
 
@@ -3133,7 +3145,7 @@ class TimCmdline:
   def cmd_status(self, *args):
     if args:
       _raise("'status' takes no arguments")
-    status = self.tim.get_status()
+    status = self.tim.verify_and_get_state()
     t = status.timing
     if t.started:
       _msg('Running: ', t.name, '=', mins2str(t.minutes), ' (since ',
@@ -3189,7 +3201,7 @@ class TimCmdline:
 
     rounder = None
     if round_to_minutes:
-      rounder = MinutesRounder(round_to_minutes)
+      rounder = SurplusRounder(round_to_minutes)
     _msg(m, totals.to_string(flat=flat,
                              only=only,
                              rounder=rounder))
@@ -3214,14 +3226,18 @@ class TimCmdline:
       rounder.clear_surplus()
     for entry in query_result.timings:
       _msg(entry.to_string(rounder=rounder))
+      
     if rounder:
       surplus1 = rounder.surplus
+    
     _msg('Sum of above timings:\n',
          query_result.totals.to_string(flat=flat, rounder=rounder))
+    
     if rounder:
       diff = diff_totals(rounder.surplus, surplus1)
       if diff:
         _debug("DIFF of SURPLUS:\n", '\n'.join(diff))
+
     if show_surplus and rounder:
       _msg('Rounding surplus:\n',
            rounder.surplus.to_string(flat=flat, omit_zero=True))

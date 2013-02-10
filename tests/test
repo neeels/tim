@@ -234,7 +234,7 @@ class TestRunner:
             _raise("Unable to create temporary path in dir '", in_dir, "'")
           else:
             tries -= 1
-          time.sleep(1)
+          time.sleep(0.5)
           continue
         else:
           raise
