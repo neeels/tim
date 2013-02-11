@@ -3043,6 +3043,34 @@ def systray_namespace(*args):
       wb.connect_signals(self)
       self.window = wb.get_object('tim_window')
 
+      tool_btn = wb.get_object('tool_button')
+      pop = gtk.Menu()
+      for stock_id in (gtk.STOCK_OPEN, gtk.STOCK_OK):
+        icon = gtk.Image()
+        icon.set_from_stock(stock_id, gtk.ICON_SIZE_BUTTON)
+        mi = gtk.MenuItem()
+        #mi.set_label('label')
+        mi.add(icon)
+        pop.append( mi )
+      pop.attach_to_widget(tool_btn, self.detach_tool_menu)
+      pop.show_all()
+
+      self.tool_menu = pop
+
+    def detach_tool_menu(self, menu, widget):
+      _debug('detach_tool_menu()')
+      pass
+
+    def on_tool_button_clicked(self, widget, event):
+      if event.type != gtk.gdk.BUTTON_PRESS:
+        _debug('no tool.')
+        return
+      self.tool_menu.popup(None, None, None, 1, event.get_time(), None)
+      
+      
+    def on_x_button_clicked(self, *args):
+      self.window.hide()
+
     def run(self):
       print 'running systray icon.'
 
@@ -3064,7 +3092,7 @@ def systray_namespace(*args):
       if event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
         _debug('left!')
         self.toggle_window()
-      if event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
+      if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
         _debug('right!')
 
     def toggle_window(self):
@@ -3079,11 +3107,10 @@ def systray_namespace(*args):
 
       if t.started:
         in_file = j(sys.path[0], self.source_icons['active'])
+        hrs,minutes = divmod(t.minutes, 60)
         if t.minutes < 600:
-          minutes = t.minutes
-          run = mins2str(minutes)
+          run = mins2str(t.minutes)
         else:
-          hrs,minutes = divmod(t.minutes, 60)
           run = str(hrs)
       else:
         in_file = j(sys.path[0], self.source_icons['inactive'])
