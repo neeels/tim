@@ -3037,7 +3037,7 @@ def systray_namespace(*args):
       self.prev_state = None
 
       # load dialog window
-      window_builder = get_gtk('tim_window.glade')
+      window_builder = get_gtk('tim.glade')
       wb = window_builder
 
       wb.connect_signals(self)
