@@ -3016,6 +3016,15 @@ def systray_namespace(*args):
   import math
   from math import pi, sin, cos
 
+  def get_gtk(name):
+    path = os.path.join(sys.path[0], name)
+    if not os.path.isfile(path):
+      raise 'error: file not found: ' + path
+    builder = gtk.Builder()
+    builder.add_from_file(path)
+    return builder
+
+
   class TimSystray:
 
     def __init__(self, tim):
@@ -3026,6 +3035,13 @@ def systray_namespace(*args):
         }
       self.icon_path = j(self.tim.base_dir, 'state.svg')
       self.prev_state = None
+
+      # load dialog window
+      window_builder = get_gtk('tim_window.glade')
+      wb = window_builder
+
+      wb.connect_signals(self)
+      self.window = wb.get_object('tim_window')
 
     def run(self):
       print 'running systray icon.'
@@ -3044,18 +3060,33 @@ def systray_namespace(*args):
       self.prev_state = state
       return True
 
-    def on_click(self):
-      _debug('clicked!')
+    def on_click(self, widget, event):
+      if event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
+        _debug('left!')
+        self.toggle_window()
+      if event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
+        _debug('right!')
+
+    def toggle_window(self):
+      if self.window.get_property("visible"):
+        self.window.hide()
+      else:
+        self.window.show()
 
     def update_icon(self, state):
       ttl = mins2str(round_minutes(self.tim.get_grand_total(state=state)))
+      t = state.timing
 
-      if state.timing.started:
-        in_file = self.source_icons['active']
-        hrs,minutes = divmod(state.timing.minutes, 60)
-        run = str(hrs)
+      if t.started:
+        in_file = j(sys.path[0], self.source_icons['active'])
+        if t.minutes < 600:
+          minutes = t.minutes
+          run = mins2str(minutes)
+        else:
+          hrs,minutes = divmod(t.minutes, 60)
+          run = str(hrs)
       else:
-        in_file = self.source_icons['inactive']
+        in_file = j(sys.path[0], self.source_icons['inactive'])
         run = ''
         minutes = None
 
@@ -3070,7 +3101,7 @@ def systray_namespace(*args):
             break
         cx = 61.961648
         cy = 61.345108
-        r = 32.
+        r = 52.
 
         end_rad = (pi*2 / 60) * minutes
         startx = cx
@@ -3084,7 +3115,7 @@ def systray_namespace(*args):
 
         new_path = '''
   <path
-     style="color:#000000;color-interpolation:sRGB;color-interpolation-filters:linearRGB;fill:none;stroke:#8adb7e;stroke-width:25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:0.65;stroke-dasharray:none;stroke-dashoffset:0;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;clip-rule:nonzero"
+     style="color:#000000;color-interpolation:sRGB;color-interpolation-filters:linearRGB;fill:none;stroke:#8adb7e;stroke-width:12;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:0.9;stroke-dasharray:none;stroke-dashoffset:0;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;clip-rule:nonzero"
      id="path10001"
      d="M %f,%f A %f,%f 0 %d 1 %f,%f"
      />
