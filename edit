@@ -1,0 +1,2 @@
+#!/bin/sh
+vim src/tim tests/test src/tim.glade tests/scripts/*
