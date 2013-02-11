@@ -3002,10 +3002,67 @@ class Tim(Notify):
     'return the grand total in minutes (including any running clock).'
     if not state:
       state = self.get_state()
-    grand_ttl = self.get_totals().get_grand_total_minutes()
-    if state.started:
-      grand_ttl += state.minutes
+    grand_ttl = self.timelog.get_totals().get_grand_total_minutes()
+    if state.timing.started:
+      grand_ttl += state.timing.minutes
     return grand_ttl
+
+# systray icon ###############################################################
+
+def systray_namespace(*args):
+  'args are passed through to TimSystray(*args)'
+  import gtk
+  import gobject
+
+  class TimSystray:
+
+    def __init__(self, tim):
+      self.tim = tim
+      self.source_icons = {
+        'active': 'tim_active.svg',
+        'inactive': 'tim_inactive.svg',
+        }
+      self.icon_path = j(self.tim.base_dir, 'state.svg')
+      self.prev_state = None
+
+    def run(self):
+      print 'running systray icon.'
+
+      self.tray = gtk.status_icon_new_from_file(self.icon_path)
+      self.tray.connect("button-press-event", self.on_click)
+      self.update_all()
+      self.update_all_id = gobject.timeout_add(1000, self.update_all)
+      gtk.main()
+
+    def update_all(self):
+      state = self.tim.verify_and_get_state()
+      if (self.prev_state is None) or (state.timing != self.prev_state.timing):
+        self.update_icon(state)
+
+      self.prev_state = state
+      return True
+
+    def on_click(self):
+      _debug('clicked!')
+
+    def update_icon(self, state):
+      if state.timing.started:
+        in_file = self.source_icons['active']
+        run = mins2str(state.timing.minutes)
+      else:
+        in_file = self.source_icons['inactive']
+        run = ''
+      ttl = mins2str(round_minutes(self.tim.get_grand_total(state=state)))
+      svg_lines = read_file_lines(in_file)
+      svg_lines = [ line.replace('TTL', ttl).replace('RUN', run)
+                    for line in svg_lines ]
+      assert(self.icon_path != in_file)
+      write_file(self.icon_path, '\n'.join(svg_lines))
+      self.tray.set_from_file(self.icon_path)
+      _debug('Wrote new svg image.')
+
+  TimSystray(*args).run()
+
 
 # invocation via commandline #################################################
 
@@ -3403,6 +3460,11 @@ class TimCmdline:
       _msg("restored timings from '", forgotten_id, "'")
     else:
       _warn('nothing was restored.')
+
+  def cmd_systray(self, *args):
+    if args:
+      _raise("'systray' does not take any arguments.")
+    systray_namespace(self.tim)
 
   def cmd_help(self, *args):
     if not args:
