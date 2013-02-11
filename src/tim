@@ -1012,7 +1012,7 @@ class State:
       _debug('waiting...')
       for n in range(50):
         time.sleep(0.2)
-        statestr = read_file(self.state_file_path)
+        statestr = read_file(self.state_file_path).strip()
         if State.STARTING != statestr:
           _debug('...success!')
           return self.read()
@@ -3007,6 +3007,16 @@ class Tim(Notify):
       grand_ttl += state.timing.minutes
     return grand_ttl
 
+  def get_all_names(self):
+    names = set()
+    for name in self.timelog.get_totals():
+      tokens = name.split('.')
+      for i in range(len(tokens)):
+        parent_name = '.'.join(tokens[:-i])
+        if parent_name:
+          names.add(parent_name)
+    return names
+
 # systray icon ###############################################################
 
 def systray_namespace(*args):
@@ -3035,6 +3045,7 @@ def systray_namespace(*args):
         }
       self.icon_path = j(self.tim.base_dir, 'state.svg')
       self.prev_state = None
+      self.timer_button_autotoggling = 0
 
       # load dialog window
       window_builder = get_gtk('tim.glade')
@@ -3042,6 +3053,11 @@ def systray_namespace(*args):
 
       wb.connect_signals(self)
       self.window = wb.get_object('tim_window')
+      self.start_timer_window = wb.get_object('start_timer_window')
+
+      self.warning_button = wb.get_object('warning_button')
+      self.warning_label = wb.get_object('warning_label')
+      self.clear_warnings()
 
       tool_btn = wb.get_object('tool_button')
       pop = gtk.Menu()
@@ -3057,9 +3073,97 @@ def systray_namespace(*args):
 
       self.tool_menu = pop
 
+      self.timer_button = wb.get_object('timer_button')
+      self.timer_button_label = wb.get_object('timer_button_label')
+
+      self.no_names_known_label = wb.get_object('no_names_known_label')
+      self.start_timer_button = wb.get_object('start_timer_button')
+      self.start_timer_buttons_box = wb.get_object('start_timer_buttons_box')
+      self.start_timer_entry = wb.get_object('start_timer_entry')
+
+
     def detach_tool_menu(self, menu, widget):
       _debug('detach_tool_menu()')
       pass
+
+    def on_timer_button_toggled(self, *args):
+      if self.timer_button_autotoggling:
+        return
+
+      on = self.timer_button.get_active()
+      _debug('on=', on)
+      state = self.tim.verify_and_get_state()
+      if on and state.timing.started:
+        self.warn('Actually, another timer is already running.')
+        return
+      if (not on) and (not state.timing.started):
+        self.warn('Actually, no timer was running.')
+        return
+      if on:
+        self.show_start_timer_window()
+        self.set_timer_button_active(False) # will be activated in due time
+      else:
+        self.tim.stop()
+        self.update_all()
+
+    def set_timer_button_active(self, bool_val):
+      self.timer_button_autotoggling += 1
+      try:
+        self.timer_button.set_active(bool_val)
+      finally:
+        self.timer_button_autotoggling -= 1
+
+    def show_start_timer_window(self):
+      # populate
+      all_names = self.tim.get_all_names()
+      self.start_timer_known_names = all_names
+
+      if all_names:
+        self.no_names_known_label.hide()
+      else:
+        self.no_names_known_label.show()
+
+      for child in self.start_timer_buttons_box.children():
+        self.start_timer_buttons_box.remove(child)
+
+      for name in sorted(self.tim.get_all_names()):
+        btn = gtk.Button()
+        btn.add(gtk.Label())
+        btn.set_label(name)
+        btn.set_alignment(0,0.5)
+        btn.connect('clicked', self.on_start_timer_name_clicked, name)
+        self.start_timer_buttons_box.pack_start(btn, expand=False)
+
+      self.start_timer_buttons_box.show_all()
+      self.start_timer_window.show()
+
+    def on_start_timer_name_clicked(self, widget, name):
+      _debug('name clicked! ', name)
+      self.start_timer_entry.set_text(name)
+
+    def on_start_timer_button_clicked(self, *args):
+      self.start_timer_window.hide()
+      if os.fork() == 0:
+        self.tim.start(self.start_timer_entry.get_text())
+
+    def on_start_timer_cancel_button_clicked(self, *args):
+      self.start_timer_window.hide()
+
+    def on_start_timer_entry_changed(self, *args):
+      name = self.start_timer_entry.get_text()
+      valid = False
+      try:
+        Timelog.validate_name(name)
+        valid = True
+      except Timelog.InvalidNameError:
+        pass
+      self.start_timer_button.set_sensitive(valid)
+      if not valid:
+        self.start_timer_entry.set_icon_from_stock(1, 'gtk-dialog-error')
+      elif name in self.start_timer_known_names:
+        self.start_timer_entry.set_icon_from_stock(1, 'gtk-ok')
+      else:
+        self.start_timer_entry.set_icon_from_stock(1, 'gtk-add')
 
     def on_tool_button_clicked(self, widget, event):
       if event.type != gtk.gdk.BUTTON_PRESS:
@@ -3070,6 +3174,22 @@ def systray_namespace(*args):
       
     def on_x_button_clicked(self, *args):
       self.window.hide()
+
+    def warn(self, *msgs):
+      msg = msgs2str(*msgs)
+      was = self.warning_label.get_text()
+      if was:
+        msg = '\n'.join((was, msg))
+      self.warning_label.set_text(msg)
+      self.warning_button.show()
+
+    def clear_warnings(self):
+      self.warning_button.hide()
+      self.warning_label.set_text('')
+
+    def on_warning_button_clicked(self, *args):
+      _debug('pressed warning')
+      self.clear_warnings()
 
     def run(self):
       print 'running systray icon.'
@@ -3084,6 +3204,7 @@ def systray_namespace(*args):
       state = self.tim.verify_and_get_state()
       if (self.prev_state is None) or (state.timing != self.prev_state.timing):
         self.update_icon(state)
+        self.update_timer_button(state)
 
       self.prev_state = state
       return True
@@ -3099,7 +3220,16 @@ def systray_namespace(*args):
       if self.window.get_property("visible"):
         self.window.hide()
       else:
+        self.update_timer_button(self.tim.verify_and_get_state())
         self.window.show()
+
+    def update_timer_button(self, state):
+      running = bool(state.timing.started)
+      self.set_timer_button_active(running)
+      if running:
+        self.timer_button_label.set_text("running '" + state.timing.name + "'")
+      else:
+        self.timer_button_label.set_text('start a timer')
 
     def update_icon(self, state):
       ttl = mins2str(round_minutes(self.tim.get_grand_total(state=state)))
