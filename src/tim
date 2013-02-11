@@ -3013,6 +3013,8 @@ def systray_namespace(*args):
   'args are passed through to TimSystray(*args)'
   import gtk
   import gobject
+  import math
+  from math import pi, sin, cos
 
   class TimSystray:
 
@@ -3046,14 +3048,53 @@ def systray_namespace(*args):
       _debug('clicked!')
 
     def update_icon(self, state):
+      ttl = mins2str(round_minutes(self.tim.get_grand_total(state=state)))
+
       if state.timing.started:
         in_file = self.source_icons['active']
-        run = mins2str(state.timing.minutes)
+        hrs,minutes = divmod(state.timing.minutes, 60)
+        run = str(hrs)
       else:
         in_file = self.source_icons['inactive']
         run = ''
-      ttl = mins2str(round_minutes(self.tim.get_grand_total(state=state)))
+        minutes = None
+
       svg_lines = read_file_lines(in_file)
+
+      if minutes:
+        _debug('minutes=', minutes)
+        text_at = None
+        for i,line in enumerate(svg_lines):
+          if line.strip().startswith('<text'):
+            text_at = i
+            break
+        cx = 61.961648
+        cy = 61.345108
+        r = 32.
+
+        end_rad = (pi*2 / 60) * minutes
+        startx = cx
+        starty = cy - r
+        endx = cx + r * sin(end_rad)
+        endy = cy - r * cos(end_rad)
+        if end_rad >= pi:
+          large_arc = 1
+        else:
+          large_arc = 0
+
+        new_path = '''
+  <path
+     style="color:#000000;color-interpolation:sRGB;color-interpolation-filters:linearRGB;fill:none;stroke:#8adb7e;stroke-width:25;stroke-linecap:butt;stroke-linejoin:miter;stroke-miterlimit:4;stroke-opacity:0.65;stroke-dasharray:none;stroke-dashoffset:0;marker:none;visibility:visible;display:inline;overflow:visible;enable-background:accumulate;clip-rule:nonzero"
+     id="path10001"
+     d="M %f,%f A %f,%f 0 %d 1 %f,%f"
+     />
+''' % (startx,starty ,  r,r,  large_arc,  endx,endy)
+
+        _debug('end_rad ' , end_rad, '(',end_rad/(2.*pi),') '
+               , '  startx', startx, '  starty ', starty, ' endx ', endx, '  endy', endy)
+        svg_lines.insert(i, new_path)
+
+
       svg_lines = [ line.replace('TTL', ttl).replace('RUN', run)
                     for line in svg_lines ]
       assert(self.icon_path != in_file)
