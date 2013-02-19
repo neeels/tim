@@ -1010,9 +1010,10 @@ class State:
       return True # stopped. no data.
     if statestr == State.STARTING:
       _debug('waiting...')
-      for n in range(50):
-        time.sleep(0.2)
+      for n in range(10):
+        time.sleep(0.1)
         statestr = read_file(self.state_file_path).strip()
+        _debug(statestr)
         if State.STARTING != statestr:
           _debug('...success!')
           return self.read()
@@ -2814,7 +2815,7 @@ class Tim(Notify):
 
   def get_state(self, read=True):
     'return the current state as on disk, no automatic fixing of stale status.'
-    return State(self.state_file_path, read)
+    return State(self.state_file_path, read=read)
 
   def verify_and_get_state(self):
     'fixes any stale timers, then returns the state.'
@@ -2840,59 +2841,71 @@ class Tim(Notify):
       self.stop()
       state.write_starting()
 
-    self.notify(Notify.STARTED, name_to_start)
     sys.stdout.flush()
     sys.stderr.flush()
 
-    daemon_out = open(j(self.base_dir, 'daemon.log'), 'a+')
-    daemon_out.write(msgs2str(time2str(now()),' -- launching daemon\n'))
-    daemon_out.flush()
+    if os.fork() == 0:
+      _debug('forked child')
 
-    with daemon.DaemonContext(
-             stdout=daemon_out, stderr=daemon_out,
-           ):
-      try:
-        my_pid = os.getpid()
+      daemon_out = open(j(self.base_dir, 'daemon.log'), 'a+')
+      daemon_out.write(msgs2str(time2str(now()),' -- launching daemon\n'))
+      daemon_out.flush()
 
-        original_starting_time = str2time( time2str( now() ) )
-        daemon_out.write(msgs2str(time2str(original_starting_time),
-                         ' -- daemon started: ', my_pid, '\n'))
-        daemon_out.flush()
+      with daemon.DaemonContext(
+               stdout=daemon_out, stderr=daemon_out,
+             ):
+        _debug('daemon child')
+        try:
+          my_pid = os.getpid()
+          _debug('daemon child2')
 
-        state = self.get_state(read=False)
-        state.set_values(
-          name=name_to_start,
-          started=original_starting_time,
-          minutes=1,  # <-- debug  minutes=0,
-          comment=comment,
-          pid=my_pid)
-        with self.lock:
+          original_starting_time = str2time( time2str( now() ) )
+          _debug('daemon child3')
+
+          state = self.get_state(read=False)
+          state.set_values(
+            name=name_to_start,
+            started=original_starting_time,
+            minutes=1,  # <-- debug  minutes=0,
+            comment=comment,
+            pid=my_pid)
           state.save()
 
-        while True:
-          # try to run just after the break of the minute
-          time.sleep(Tim.seconds_per_minute + 1
-                     - (now() % Tim.seconds_per_minute))
+          _msg(msgs2str(time2str(original_starting_time),
+               ' -- daemon started: ', my_pid, '\n'))
 
-          with self.lock:
-            # verify that the state still shows the same starting time that
-            # I was called to act on.
-            state.read()
-            t = state.timing
-            if t.started:
-              self.handle_stale_state(state)
-            if not (state.pid == my_pid
-                    and t.name == name_to_start):
-              # the current state no longer concerns me.
-              return
+          while True:
+            # try to run just after the break of the minute
+            time.sleep(Tim.seconds_per_minute + 1
+                       - (now() % Tim.seconds_per_minute))
 
-            # all is well, update the state
-            t.minutes = ((int(now()) - t.started) 
-                         / Tim.seconds_per_minute)
-            state.save()
-      finally:
-        _msg('daemon done')
+            with self.lock:
+              # verify that the state still shows the same starting time that
+              # I was called to act on.
+              state.read()
+              t = state.timing
+              if t.started:
+                self.handle_stale_state(state)
+              if not (state.pid == my_pid
+                      and t.name == name_to_start):
+                # the current state no longer concerns me.
+                return
 
+              # all is well, update the state
+              t.minutes = ((int(now()) - t.started) 
+                           / Tim.seconds_per_minute)
+              state.save()
+        finally:
+          _msg('daemon done')
+          os._exit(0)
+
+      _msg('forked child done')
+      # Above fork() might have forked a GTK process or whatnot. This is the
+      # forked client with the sole purpose of launching a daemon while the
+      # calling process remains untouched. Do not clean up on exit.
+      os._exit(0)
+
+    self.notify(Notify.STARTED, name_to_start)
 
   def adjust_start(self, new_start):
     with self.lock:
@@ -3037,8 +3050,8 @@ def systray_namespace(*args):
 
   class TimSystray:
 
-    def __init__(self, tim):
-      self.tim = tim
+    def __init__(self, base_dir=None):
+      self.tim = Tim(self.notify, base_dir=base_dir)
       self.source_icons = {
         'active': 'tim_active.svg',
         'inactive': 'tim_inactive.svg',
@@ -3058,6 +3071,10 @@ def systray_namespace(*args):
       self.warning_button = wb.get_object('warning_button')
       self.warning_label = wb.get_object('warning_label')
       self.clear_warnings()
+
+      self.message_button = wb.get_object('message_button')
+      self.message_label = wb.get_object('message_label')
+      self.clear_messages()
 
       tool_btn = wb.get_object('tool_button')
       pop = gtk.Menu()
@@ -3081,6 +3098,47 @@ def systray_namespace(*args):
       self.start_timer_buttons_box = wb.get_object('start_timer_buttons_box')
       self.start_timer_entry = wb.get_object('start_timer_entry')
 
+    def notify(self, key, arg):
+      self.update_all()
+      if key == Notify.ALREADY_RUNNING:
+        name = str(arg)
+        self.warn('Already running: ', name)
+      elif key == Notify.STOPPED:
+        state = arg
+        t = state.timing
+        self.msg('stopped ', t.name,
+             ' (', mins2str(t.minutes), ')')
+      elif key == Notify.STARTED:
+        name = str(arg)
+        self.msg('started ', name)
+      elif key == Notify.FIX_NEEDED:
+        yearnr = arg
+        self.warn('remember to call \'tim fix ', yearnr, '\' at some point.')
+      elif key == Notify.MSG:
+        msg = arg
+        self.msg(msg)
+      elif key == Notify.WARN:
+        msg = arg
+        self.warn(msg)
+      elif key == Notify.ERROR:
+        msg = arg
+        _raise(msg)
+      elif key == Notify.STALE:
+        state, reason = arg
+        t = state.timing
+        if reason == State.REASON_STALE:
+          reason = 'was not updated for a long time'
+        elif reason == State.REASON_DAEMON_EXITED:
+          reason = 'the daemon is no longer running'
+        self.warn('detected undead timer!',
+              '\nStopped timer, not counting interrupted time.',
+              '\n         name: ', t.name,
+              '\n      started: ', time2str(t.started),
+              '\n      ran for: ', mins2str(t.minutes),
+              '\n  interrupted: ', mins2str((now()-t.started)/60 - t.minutes),
+                ' hours ago',
+              '\n       reason: ', reason,
+              )
 
     def detach_tool_menu(self, menu, widget):
       _debug('detach_tool_menu()')
@@ -3091,13 +3149,14 @@ def systray_namespace(*args):
         return
 
       on = self.timer_button.get_active()
-      _debug('on=', on)
       state = self.tim.verify_and_get_state()
       if on and state.timing.started:
         self.warn('Actually, another timer is already running.')
+        self.update_all()
         return
       if (not on) and (not state.timing.started):
         self.warn('Actually, no timer was running.')
+        self.update_all()
         return
       if on:
         self.show_start_timer_window()
@@ -3138,13 +3197,11 @@ def systray_namespace(*args):
       self.start_timer_window.show()
 
     def on_start_timer_name_clicked(self, widget, name):
-      _debug('name clicked! ', name)
       self.start_timer_entry.set_text(name)
 
     def on_start_timer_button_clicked(self, *args):
       self.start_timer_window.hide()
-      if os.fork() == 0:
-        self.tim.start(self.start_timer_entry.get_text())
+      self.tim.start(self.start_timer_entry.get_text())
 
     def on_start_timer_cancel_button_clicked(self, *args):
       self.start_timer_window.hide()
@@ -3175,6 +3232,22 @@ def systray_namespace(*args):
     def on_x_button_clicked(self, *args):
       self.window.hide()
 
+    def msg(self, *msgs):
+      msg = msgs2str(*msgs)
+      was = self.message_label.get_text()
+      if was:
+        msg = '\n'.join((was, msg))
+      self.message_label.set_text(msg)
+      self.message_button.show()
+
+    def clear_messages(self):
+      self.message_button.hide()
+      self.message_label.set_text('')
+
+    def on_message_button_clicked(self, *args):
+      _debug('pressed message')
+      self.clear_messages()
+
     def warn(self, *msgs):
       msg = msgs2str(*msgs)
       was = self.warning_label.get_text()
@@ -3197,7 +3270,7 @@ def systray_namespace(*args):
       self.tray = gtk.status_icon_new_from_file(self.icon_path)
       self.tray.connect("button-press-event", self.on_click)
       self.update_all()
-      self.update_all_id = gobject.timeout_add(1000, self.update_all)
+      self.update_all_id = gobject.timeout_add(10000, self.update_all)
       gtk.main()
 
     def update_all(self):
@@ -3211,7 +3284,6 @@ def systray_namespace(*args):
 
     def on_click(self, widget, event):
       if event.type == gtk.gdk.BUTTON_PRESS and event.button == 1:
-        _debug('left!')
         self.toggle_window()
       if event.type == gtk.gdk.BUTTON_PRESS and event.button == 3:
         _debug('right!')
@@ -3250,7 +3322,6 @@ def systray_namespace(*args):
       svg_lines = read_file_lines(in_file)
 
       if minutes:
-        _debug('minutes=', minutes)
         text_at = None
         for i,line in enumerate(svg_lines):
           if line.strip().startswith('<text'):
@@ -3278,8 +3349,6 @@ def systray_namespace(*args):
      />
 ''' % (startx,starty ,  r,r,  large_arc,  endx,endy)
 
-        _debug('end_rad ' , end_rad, '(',end_rad/(2.*pi),') '
-               , '  startx', startx, '  starty ', starty, ' endx ', endx, '  endy', endy)
         svg_lines.insert(i, new_path)
 
 
@@ -3288,7 +3357,6 @@ def systray_namespace(*args):
       assert(self.icon_path != in_file)
       write_file(self.icon_path, '\n'.join(svg_lines))
       self.tray.set_from_file(self.icon_path)
-      _debug('Wrote new svg image.')
 
   TimSystray(*args).run()
 
@@ -3693,7 +3761,7 @@ class TimCmdline:
   def cmd_systray(self, *args):
     if args:
       _raise("'systray' does not take any arguments.")
-    systray_namespace(self.tim)
+    systray_namespace()
 
   def cmd_help(self, *args):
     if not args:
