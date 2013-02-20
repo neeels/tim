@@ -949,11 +949,12 @@ class Timing:
       
 class State:
   STOPPED = 'stopped'
-  STARTING = 'starting'
+  STARTING = 'starting:'
 
   def __init__(self, state_file_path, read=True):
-    self.timing = Timing()
     self.pid = None
+    self.starting_id = None
+    self.timing = Timing()
     self.state_file_path = state_file_path
     if self.state_file_path and read:
       self.read()
@@ -989,11 +990,15 @@ class State:
     write_file(self.state_file_path, self.serialize())
     return self
 
-  def write_starting(self):
-    write_file(self.state_file_path, State.STARTING)
+  def write_starting(self, starting_id):
+    write_file(self.state_file_path, '%s%s'%(State.STARTING, str(starting_id)))
+
+  def is_starting(self, starting_id):
+    return self.starting_id and (self.starting_id == str(starting_id))
 
   def clear(self):
     self.pid = None
+    self.starting_id = None
     self.timing.clear()
 
   def read(self):
@@ -1008,21 +1013,9 @@ class State:
     statestr = statestr.strip()
     if statestr == State.STOPPED:
       return True # stopped. no data.
-    if statestr == State.STARTING:
-      _debug('waiting...')
-      for n in range(10):
-        time.sleep(0.1)
-        statestr = read_file(self.state_file_path).strip()
-        _debug(statestr)
-        if State.STARTING != statestr:
-          _debug('...success!')
-          return self.read()
-      _debug('...failure.')
-      # The daemon had enough time to start. Something is wrong. Clear.
-      self.clear()
-      self.save()
+    if statestr.startswith(State.STARTING):
+      self.starting_id = statestr[len(State.STARTING):]
       return True
-
     return self.deserialize(statestr)
 
   REASON_STALE = 'stale'
@@ -2640,13 +2633,16 @@ class TimedDirLock(Notify):
     self.valid_for = valid_for
     self.acquired = None
     self.id_file = j(self.lock_path, 'pid')
-    self.id = TimedDirLock.id_count
     TimedDirLock.id_count += 1
+    self.id = TimedDirLock.id_count
     self.lock_count = 0
 
 
   class LockError(Error):
     pass
+
+  def locked(self):
+    return (self.acquired is not None)
 
   def get_lock_creation_time(self):
     try:
@@ -2791,7 +2787,7 @@ class Tim(Notify):
             t.comment = comment
         self.timelog.add_timing(t, directly_to_file=True)
         # clear the state on disk
-        empty_state = self.get_state(read=False)
+        empty_state = self.new_state()
         empty_state.save()
       else:
         stopped_state = None # nothing was stopped
@@ -2813,11 +2809,20 @@ class Tim(Notify):
       # Reload.
       state.read()
 
-  def get_state(self, read=True):
-    'return the current state as on disk, no automatic fixing of stale status.'
-    return State(self.state_file_path, read=read)
+  def new_state(self):
+    'return an empty, initialized State instance.'
+    return State(self.state_file_path, read=False)
 
-  def verify_and_get_state(self):
+  def _get_state_nonlocking(self):
+    'use get_state() instead.'
+    return State(self.state_file_path)
+
+  def get_state(self):
+    'return the current state as on disk, no automatic fixing of stale status.'
+    with self.lock:
+      return self._get_state_nonlocking()
+
+  def verify_and_get_state(self, retry=True):
     'fixes any stale timers, then returns the state.'
     with self.lock:
       state = self.get_state()
@@ -2827,25 +2832,37 @@ class Tim(Notify):
 
   def start(self, name_to_start, comment=None):
     '''name_to_start: full project name ('root.bar.baz') '''
+    notifications = []
 
     with self.lock:
-      state = self.get_state()
+      notify_args = self._start(name_to_start, comment)
 
-      t = state.timing
-      if t.started:
-        if t.name == name_to_start:
-          self.notify(Notify.ALREADY_RUNNING, name_to_start)
-          if t.add_comment(comment):
-            state.save()
-          return True
+    if notify_args:
+      self.notify(*notify_args)
+
+  def _start(self, name_to_start, comment):
+    state = self.verify_and_get_state()
+    t = state.timing
+    if t.started:
+      if t.name == name_to_start:
+        if t.add_comment(comment):
+          state.save()
+        return (Notify.ALREADY_RUNNING, name_to_start)
       self.stop()
-      state.write_starting()
+
+    # do a rounding to Tim's precision
+    original_starting_time = str2time( time2str( now() ) )
+
+    starting_id = ','.join((str(os.getpid()), str(time.time())))
+    self.new_state().write_starting(starting_id)
 
     sys.stdout.flush()
     sys.stderr.flush()
 
+    # fork to detach the daemon that is to be started, instead of this process
+    # becoming the daemon. There's housekeeping to do while the daemon is
+    # starting.
     if os.fork() == 0:
-      _debug('forked child')
 
       daemon_out = open(j(self.base_dir, 'daemon.log'), 'a+')
       daemon_out.write(msgs2str(time2str(now()),' -- launching daemon\n'))
@@ -2854,58 +2871,101 @@ class Tim(Notify):
       with daemon.DaemonContext(
                stdout=daemon_out, stderr=daemon_out,
              ):
-        _debug('daemon child')
         try:
-          my_pid = os.getpid()
-          _debug('daemon child2')
+          # this is a child process spawned while the tim storage is locked
+          # by the spawning process. Let's not confuse locks.
+          self.lock = TimedDirLock(self.notify_func, self.lock_path)
 
-          original_starting_time = str2time( time2str( now() ) )
-          _debug('daemon child3')
+          daemon_pid = os.getpid()
 
-          state = self.get_state(read=False)
-          state.set_values(
+          starting_state = self._get_state_nonlocking()
+
+          if not starting_state.is_starting(starting_id):
+            _errmsg('daemon aborting')
+            # someone else wrote over the state file. I'm out.
+            return
+
+          imperative_state = self.new_state()
+          imperative_state.set_values(
             name=name_to_start,
             started=original_starting_time,
             minutes=1,  # <-- debug  minutes=0,
             comment=comment,
-            pid=my_pid)
-          state.save()
-
-          _msg(msgs2str(time2str(original_starting_time),
-               ' -- daemon started: ', my_pid, '\n'))
-
-          while True:
-            # try to run just after the break of the minute
-            time.sleep(Tim.seconds_per_minute + 1
-                       - (now() % Tim.seconds_per_minute))
-
-            with self.lock:
-              # verify that the state still shows the same starting time that
-              # I was called to act on.
-              state.read()
-              t = state.timing
-              if t.started:
-                self.handle_stale_state(state)
-              if not (state.pid == my_pid
-                      and t.name == name_to_start):
-                # the current state no longer concerns me.
-                return
-
-              # all is well, update the state
-              t.minutes = ((int(now()) - t.started) 
-                           / Tim.seconds_per_minute)
-              state.save()
+            pid=daemon_pid)
+          # the parent process is keeping the lock until I write my PID into
+          # the state file. Write without locking.
+          imperative_state.save()
+          self._run_daemon(imperative_state)
+        except Exception as e:
+          handle_error(e)
         finally:
+          sys.stdout.flush()
+          sys.stderr.flush()
           _msg('daemon done')
           os._exit(0)
 
+      sys.stdout.flush()
+      sys.stderr.flush()
       _msg('forked child done')
       # Above fork() might have forked a GTK process or whatnot. This is the
       # forked client with the sole purpose of launching a daemon while the
       # calling process remains untouched. Do not clean up on exit.
       os._exit(0)
 
-    self.notify(Notify.STARTED, name_to_start)
+    # This is the parent process. I still have the lock. Wait until the
+    # daemon has written its PID to the file.
+    tries = 10
+    wait = 3. / tries
+    while True:
+      state = self.get_state()
+
+      if (state and (state.timing.started == original_starting_time)
+          and (state.timing.name == name_to_start)):
+        # success, the daemon has written its PID to the state file.
+        return (Notify.STARTED, name_to_start)
+        # returning will release the lock.
+
+      if tries < 1:
+        # :(
+        #gently_kill_process(child_pid)
+        # clear state on disk
+        with self.lock:
+          self.new_state().save()
+        _raise('Failed to start, daemon did not come up.')
+        # raising will release the lock.
+      else:
+        time.sleep(wait)
+      tries -= 1
+    # never reached
+
+  def _run_daemon(self, imperative_state):
+    _msg(msgs2str(time2str(imperative_state.timing.started),
+         ' -- daemon started: ', imperative_state.pid, '\n'))
+
+    state = self.new_state()
+
+    while True:
+      # try to run just after the break of the minute
+      time.sleep(Tim.seconds_per_minute + 1
+                 - (now() % Tim.seconds_per_minute))
+
+      with self.lock:
+        # verify that the state still shows the same starting time that
+        # I was called to act on.
+        state.read()
+        t = state.timing
+        if t.started:
+          self.handle_stale_state(state)
+        if not (state.pid == imperative_state.pid
+                and t.name == imperative_state.timing.name
+                and t.started == imperative_state.timing.started):
+          # the current state no longer concerns me.
+          return
+
+        # all is well, update the state
+        t.minutes = ((int(now()) - t.started) 
+                     / Tim.seconds_per_minute)
+        state.save()
 
   def adjust_start(self, new_start):
     with self.lock:
