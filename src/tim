@@ -43,6 +43,7 @@ Command line usage:
   tim [status]
   tim new <project-name>
   tim [start] <project-name> [-- <comment>]
+  tim started <project-name> <time-of-day> [-- <comment>]
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
   tim stop [-- <comment>]
   tim stopped [-]<HH:MM> [-- <comment>]
@@ -494,7 +495,7 @@ def handle_error(e):
 
 # generic conversion functions ###############################################
 
-def mins2str(float_mins, always_show_sign=False):
+def minutes2str(float_mins, always_show_sign=False):
   sign = 1
   frac = 59.0
   if float_mins < 0:
@@ -523,7 +524,7 @@ def mins2str(float_mins, always_show_sign=False):
 class FormatError(Error):
   pass
 
-def str2mins(str_hours, raise_on_err=True):
+def str2minutes(str_hours, raise_on_err=True):
   try: 
     if str_hours.find(':') < 0:
       return int(round(float(str_hours) * 60.0))
@@ -888,7 +889,7 @@ class Timing:
       minutes = rounder.round(self.name, minutes)
     elts = [started_str,
             self.name or 'unnamed',
-            mins2str(minutes or 0)]
+            minutes2str(minutes or 0)]
     if self.comment:
       elts.append('#')
       elts.append(self.comment)
@@ -908,7 +909,7 @@ class Timing:
       self.set_values(
                     started=str2time('%s-%s-%s %s:%s' % match.groups()[0:5]),
                     name=match.group(6),
-                    minutes=str2mins(match.group(7)),
+                    minutes=str2minutes(match.group(7)),
                     comment=match.group(9),
                    )
       return self
@@ -1142,7 +1143,7 @@ class Totals:
       raise Totals.TotalsErr('Line does not match "' + TOTALS_LINE_RE + '"')
     name = match.group(1)
     Timelog.validate_name(name)
-    minutes = str2mins(match.group(3))
+    minutes = str2minutes(match.group(3))
     if name in self.entries:
       raise Totals.TotalsErr('Duplicate name: ' + name)
     self.entries[name] = minutes
@@ -1160,7 +1161,7 @@ class Totals:
     self.modified = False
 
   def get_serialized_items(self):
-    return [ ( '%s=%s\n' % (name, mins2str(minutes)) )
+    return [ ( '%s=%s\n' % (name, minutes2str(minutes)) )
             for name, minutes in sorted(self.iteritems())]
 
   def __repr__(self):
@@ -1218,7 +1219,7 @@ class Totals:
 
     if flat:
       def total2str(name, minutes, always_show_sign=False):
-        mins_str = mins2str(minutes, always_show_sign)
+        mins_str = minutes2str(minutes, always_show_sign)
         if not ':' in mins_str:
           mins_str += '   '
         mins_str = '%9s' % mins_str
@@ -1252,7 +1253,7 @@ class Totals:
         val_d = {}
         if val:
           val_d[OWN] = val
-          val_d[OWNSTR] = mins2str(val)
+          val_d[OWNSTR] = minutes2str(val)
         d[last_name] = val_d
 
       def trickle_sums(a_dict, full_name='', last_name=None):
@@ -1269,7 +1270,7 @@ class Totals:
                                  full_name=child_full_name,
                                  last_name=child_name)
           minutes_sum += sub_sum
-        a_dict[SUMSTR] = mins2str(minutes_sum)
+        a_dict[SUMSTR] = minutes2str(minutes_sum)
         return minutes_sum
       #end of trickle_sums()
 
@@ -1398,7 +1399,7 @@ class Totals:
 
     return matches
 
-  def find_full_name(self, name):
+  def find_full_name(self, name, allow_none=True):
     matches = self.find_full_names(name)
     if name in matches:
       return name
@@ -1408,7 +1409,9 @@ class Totals:
     elif len(matches) == 1:
       return matches.pop()
     else:
-      return None
+      if allow_none:
+        return None
+      raise Totals.TotalsErr("No matching name found for '", name, "'.")
 
   def name_exists(self, name):
     matches = self.find_full_names(name)
@@ -1470,13 +1473,13 @@ def diff_totals(t_is, t_shouldbe):
       if shouldbe_minutes is None:
         shouldbe_str = ', but there is no prior record of that name.'
       else:
-        shouldbe_str = ', should be ' + mins2str(shouldbe_minutes)
-      diff.append(msgs2str(" - '", name, "' is ", mins2str(minutes),
+        shouldbe_str = ', should be ' + minutes2str(shouldbe_minutes)
+      diff.append(msgs2str(" - '", name, "' is ", minutes2str(minutes),
                            shouldbe_str))
   for name,minutes in sorted(t_shouldbe.iteritems()):
     if not name in t_is:
       diff.append(msgs2str(" - '", name, "' is missing, should be ",
-                           mins2str(minutes)))
+                           minutes2str(minutes)))
   return diff
 
 
@@ -1980,7 +1983,7 @@ class Timelog(Notify):
               prev_fixed_str = ' after above fix'
             else:
               prev_fixed_str = ''
-            hours_str = mins2str(float(overlap)/60)
+            hours_str = minutes2str(float(overlap)/60)
             if not ':' in hours_str:
               hours_str += ':00'
             self.msg('** ', msg, 'overlap:',
@@ -2378,7 +2381,7 @@ class Timelog(Notify):
       return None
 
     def minutes_arg(self):
-      minutes = str2mins(self.token, raise_on_err=False)
+      minutes = str2minutes(self.token, raise_on_err=False)
       if minutes is None:
         return None
       return float(minutes)
@@ -2984,6 +2987,21 @@ class Tim(Notify):
       t.minutes = int((tnow - new_start) / 60)
       state.save()
 
+  def adjust_start_time_of_day(self, new_start_time_of_day_in_minutes):
+    '''Set a currently running timer to have started at a given time-of-day.
+    The time-of-day is given as amount of minutes since 0:00 hours. If the
+    given time-of-day is later than the current time, it is interpreted as
+    the same time yesterday. E.g. if it is 3:00 AM and you supply 23:00, i.e.
+    an argument of 23*60, you mean to have started yesterday at 23:00 PM.'''
+    time_now = now()
+    day_start = str2time( time2str(time_now)[:10] + ' 00:00' )
+    minutes_today = (time_now - day_start) / 60
+    if new_start_time_of_day_in_minutes > minutes_today:
+      # the user must have meant yesterday.
+      new_start_time_of_day_in_minutes -= 24*60
+    new_start = day_start + (new_start_time_of_day_in_minutes * 60)
+    self.adjust_start(new_start)
+
   def adjust_add(self, minutes):
     with self.lock:
       state = self.get_state()
@@ -3026,8 +3044,8 @@ class Tim(Notify):
     t = self._forge(name, now(), -minutes, comment)
     self.notify(Notify.MSG, msgs2str('ticked off: ', repr(t)))
 
-  def find_full_name(self, name):
-    return self.timelog.get_totals().find_full_name(name)
+  def find_full_name(self, name, allow_none=True):
+    return self.timelog.get_totals().find_full_name(name, allow_none=allow_none)
 
   def undo_last_tickoff(self):
     with self.lock:
@@ -3177,15 +3195,16 @@ def systray_namespace(*args):
       drawable = self.timelog_area.window
       x,y,w,h,d = drawable.get_geometry()
       u = event.area
+      t = str(now() % 10)
       if (u.x < 0.5*w) or (u.y < 0.5*h):
         drawable.draw_line(gc, *[int(v) for v in (0.1 * w, 0.1*h, 0.49*w, 0.49*h)])
         #_debug("TOP")
-        self.timelog_pango.set_text(str(now() % 10))
+        self.timelog_pango.set_text(t)
         drawable.draw_layout(gc, int(0.3*w), int(0.3*h), self.timelog_pango)
       if (u.x+u.width > 0.5*w) or (u.y+u.height > 0.5*h):
         drawable.draw_line(gc, *[int(v) for v in (0.51 * w, 0.51*h, 0.9*w, 0.9*h)])
         # _debug("BOT")
-        self.timelog_pango.set_text(str(now() % 10))
+        self.timelog_pango.set_text(t)
         drawable.draw_layout(gc, int(0.6*w), int(0.6*h), self.timelog_pango)
       self.exposed += 1
       #_debug(self.exposed, ' exposures ', event.area, ' ', drawable.get_geometry())
@@ -3200,7 +3219,7 @@ def systray_namespace(*args):
         state = arg
         t = state.timing
         self.msg('stopped ', t.name,
-             ' (', mins2str(t.minutes), ')')
+             ' (', minutes2str(t.minutes), ')')
       elif key == Notify.STARTED:
         name = str(arg)
         self.msg('started ', name)
@@ -3227,8 +3246,8 @@ def systray_namespace(*args):
               '\nStopped timer, not counting interrupted time.',
               '\n         name: ', t.name,
               '\n      started: ', time2str(t.started),
-              '\n      ran for: ', mins2str(t.minutes),
-              '\n  interrupted: ', mins2str((now()-t.started)/60 - t.minutes),
+              '\n      ran for: ', minutes2str(t.minutes),
+              '\n  interrupted: ', minutes2str((now()-t.started)/60 - t.minutes),
                 ' hours ago',
               '\n       reason: ', reason,
               )
@@ -3409,14 +3428,14 @@ def systray_namespace(*args):
         self.timer_button_label.set_text('start a timer')
 
     def update_icon(self, state):
-      ttl = mins2str(round_minutes(self.tim.get_grand_total(state=state)))
+      ttl = minutes2str(round_minutes(self.tim.get_grand_total(state=state)))
       t = state.timing
 
       if t.started:
         in_file = j(sys.path[0], self.source_icons['active'])
         hrs,minutes = divmod(t.minutes, 60)
         if t.minutes < 600:
-          run = mins2str(t.minutes)
+          run = minutes2str(t.minutes)
         else:
           run = str(hrs)
       else:
@@ -3551,7 +3570,7 @@ class TimCmdline:
       state = arg
       t = state.timing
       _msg('stopped ', t.name,
-           ' (', mins2str(t.minutes), ')')
+           ' (', minutes2str(t.minutes), ')')
     elif key == Notify.STARTED:
       name = str(arg)
       _msg('started ', name)
@@ -3578,8 +3597,8 @@ class TimCmdline:
             '\nStopped timer, not counting interrupted time.',
             '\n         name: ', t.name,
             '\n      started: ', time2str(t.started),
-            '\n      ran for: ', mins2str(t.minutes),
-            '\n  interrupted: ', mins2str((now()-t.started)/60 - t.minutes),
+            '\n      ran for: ', minutes2str(t.minutes),
+            '\n  interrupted: ', minutes2str((now()-t.started)/60 - t.minutes),
               ' hours ago',
             '\n       reason: ', reason,
             )
@@ -3594,6 +3613,16 @@ class TimCmdline:
              "try 'tim new ", args[0], "' first?", help_hint)
     self.tim.start(name, comment)
 
+  def cmd_started(self, *args):
+    if len(args) < 2:
+      _raise("'started' takes at least a name and a time-of-day argument.\n",
+             name_syntax_docstr)
+    name = self.tim.find_full_name(args[0], allow_none=False)
+    time_of_day = str2minutes(args[1])
+    comment = ' '.join(args[2:])
+    self.tim.start(name, comment)
+    self.tim.adjust_start_time_of_day(time_of_day)
+
   def cmd_stop(self, *args):
     comment = ' '.join(args)
     stopped_state = self.tim.stop(comment)
@@ -3607,7 +3636,7 @@ class TimCmdline:
     status = self.tim.verify_and_get_state()
     t = status.timing
     if t.started:
-      _msg('Running: ', t.name, '=', mins2str(t.minutes), ' (since ',
+      _msg('Running: ', t.name, '=', minutes2str(t.minutes), ' (since ',
            time2str(t.started), ')')
     else:
       _msg('Not running.')
@@ -3629,7 +3658,7 @@ class TimCmdline:
         i += 1
         if not (i < len(args)):
           _raise("expecting a rounding duration after 'round'")
-        round_to_minutes = str2mins(args[i])
+        round_to_minutes = str2minutes(args[i])
       elif '-s' == arg:
         show_surplus = True
       elif '-f' == arg:
@@ -3743,21 +3772,12 @@ class TimCmdline:
 
     cmd = arg[0]
     try:
-      minutes_arg = str2mins(arg[1:])
+      minutes_arg = str2minutes(arg[1:])
     except FormatError as e:
       _raise("invalid 'adjust' argument: ", e.msg, help_hint)
 
     if cmd == '@':
-      # set starting time
-      # get current time less start today (set hours and minutes to zero)
-      time_now = now()
-      day_start = str2time( time2str(time_now)[:10] + ' 00:00' )
-      minutes_today = (time_now - day_start) / 60
-      if minutes_arg > minutes_today:
-        # the user must have meant yesterday.
-        minutes_arg -= 24*60
-      new_start = day_start + (minutes_arg * 60)
-      self.tim.adjust_start(new_start)
+      self.tim.adjust_start_time_of_day(minutes_arg)
     elif cmd == '+':
       self.tim.adjust_add(minutes_arg)
     elif cmd == '-':
@@ -3775,7 +3795,7 @@ class TimCmdline:
 
     d, t, name, duration = args
     date = '%s %s' % (d, t)
-    self.tim.forge(name, str2time(date), str2mins(duration))
+    self.tim.forge(name, str2time(date), str2minutes(duration))
 
   def cmd_tickoff(self, *args):
     if '--undo' in args:
@@ -3793,7 +3813,7 @@ class TimCmdline:
 
     for arg in args:
       if minutes is None:
-        minutes = str2mins(arg, raise_on_err=False)
+        minutes = str2minutes(arg, raise_on_err=False)
         if minutes is not None:
           continue
       if name is None:
