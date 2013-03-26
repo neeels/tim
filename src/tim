@@ -52,7 +52,7 @@ Command line usage:
           [from|until|before|after <date>] \
           [sum [<nr>] hours|days|weeks|months|years] \
           [round <duration>] [only <name>[.*][,...]] [-f]
-  tim fix [<start-year>] [--clear] [--overlaps=shift|drop]
+  tim fix [<start-year>] [--clear] [--overlaps=shift|drop|ignore]
   tim tickoff <name> <hours> 
   tim tickoff <hours> <name> 
   tim tickoff --undo
@@ -323,11 +323,12 @@ To fix any errors in the logs (because you edited them?), see 'tim help fix'.
 edited the logs manually or recently recovered from catastrophic hardware
 failure.
 
-This runs through the logs and fixes by
-- putting timings in their correct year logs,
-- sorting timing logs,
-- verify and correct the grand total shown by 'tim totals',
-- verify and correct the initial totals at the beginning of each log file;
+This runs through the logs and
+- puts timings in their correct year logs,
+- sorts timing logs,
+- finds and possibly fixes any overlapping timings,
+- verifies and corrects the grand total shown by 'tim totals',
+- verifies and corrects the initial totals at the beginning of each log file.
 
 This is particularly useful for editing the recorded timings: simply edit the
 log files in ~/.tim/timelog/, then call 'tim fix' to carry the edits through
@@ -349,6 +350,17 @@ If any overlapping timings are found, --overlaps selects the way to fix:
   --overlaps=ignore -- don't show any overlap warnings
 The default is to leave overlaps as they are, while warning about their
 existence.
+
+Note that fixing the logs cannot be undone. Usually, you won't need to undo a
+fix, either. If you are unsure, make a backup of your ~/.tim/timelog folder
+before calling 'tim fix'. By the way, you should make regular backups anyway.
+
+Also note: the date given on each line in the log files is assumed to be
+correct. For example, if a timing with a date of '2012-03-04' is found in the
+log file for year 2013, 'tim fix' does not change the year number to 2013, but
+instead moves that timing to the log file for 2012, sorted into in the proper
+location in that log file. So if you edit the logs manually, make sure the
+dates are correct.
 
 Examples:
   tim fix
@@ -474,6 +486,10 @@ def _warn(*msgs):
 
 def _msg(*msgs):
   print msgs2str(*msgs)
+
+def _msg_and_flush(*msgs):
+  print msgs2str(*msgs)
+  sys.stdout.flush()
 
 def _errmsg(*msgs):
   sys.stderr.write('*** ')
@@ -2835,30 +2851,36 @@ class Tim(Notify):
 
   def start(self, name_to_start, comment=None, create_if_missing=False):
     '''name_to_start: full project name ('root.bar.baz') '''
-    notifications = []
 
+    notify_args = None
     with self.lock:
-      if not name_to_start in self.get_all_names():
-        if not create_if_missing:
-          _raise('no such name: ', name_to_start)
-        self.new(name_to_start)
-      notify_args = self._start(name_to_start, comment)
+      while True: # not a loop, just for break
+        if not name_to_start in self.get_all_names():
+          if not create_if_missing:
+            _raise('no such name: ', name_to_start)
+          else:
+            self.new(name_to_start)
+
+        state = self.verify_and_get_state()
+        t = state.timing
+        if t.started:
+          if t.name == name_to_start:
+            if t.add_comment(comment):
+              state.save()
+            notify_args = (Notify.ALREADY_RUNNING, name_to_start)
+            break
+          else:
+            self.stop()
+        
+        notify_args = self._new_timing_daemon(now(), name_to_start, comment)
+        break
 
     if notify_args:
       self.notify(*notify_args)
 
-  def _start(self, name_to_start, comment):
-    state = self.verify_and_get_state()
-    t = state.timing
-    if t.started:
-      if t.name == name_to_start:
-        if t.add_comment(comment):
-          state.save()
-        return (Notify.ALREADY_RUNNING, name_to_start)
-      self.stop()
-
+  def _new_timing_daemon(self, starting_time, name_to_start, comment):
     # do a rounding to Tim's precision
-    original_starting_time = str2time( time2str( now() ) )
+    original_starting_time = str2time( time2str( starting_time ) )
 
     starting_id = ','.join((str(os.getpid()), str(time.time())))
     self.new_state().write_starting(starting_id)
@@ -2872,7 +2894,9 @@ class Tim(Notify):
     if os.fork() == 0:
 
       daemon_out = open(j(self.base_dir, 'daemon.log'), 'a+')
-      daemon_out.write(msgs2str(time2str(now()),' -- launching daemon\n'))
+      daemon_out.write(msgs2str(time2str(now()),' -- launching daemon for ',
+                       time2str(original_starting_time), ' ', name_to_start,
+                       '\n'))
       daemon_out.flush()
 
       with daemon.DaemonContext(
@@ -2888,7 +2912,9 @@ class Tim(Notify):
           starting_state = self._get_state_nonlocking()
 
           if not starting_state.is_starting(starting_id):
-            _errmsg('daemon aborting')
+            _errmsg('daemon not launching: ',
+                    "no match for expected starting id ('",
+                    starting_id, "')")
             # someone else wrote over the state file. I'm out.
             return
 
@@ -2946,8 +2972,8 @@ class Tim(Notify):
     # never reached
 
   def _run_daemon(self, imperative_state):
-    _msg(msgs2str(time2str(imperative_state.timing.started),
-         ' -- daemon started: ', imperative_state.pid, '\n'))
+    _msg_and_flush(time2str(imperative_state.timing.started),
+                   ' -- daemon started: ', imperative_state, '\n')
 
     state = self.new_state()
 
@@ -2963,10 +2989,20 @@ class Tim(Notify):
         t = state.timing
         if t.started:
           self.handle_stale_state(state)
-        if not (state.pid == imperative_state.pid
-                and t.name == imperative_state.timing.name
-                and t.started == imperative_state.timing.started):
+
+        exit_reasons = []
+        if state.pid != imperative_state.pid:
+          exit_reasons.append( msgs2str(state.pid, ' is not my PID') )
+        if t.name != imperative_state.timing.name:
+          exit_reasons.append( msgs2str("I was not started for name '", t.name,
+                                        "'") )
+        #if t.started != imperative_state.timing.started:
+        #  exit_reasons.append( msgs2str('I was not started at ',
+        #                                time2str(t.started) ) )
+        if exit_reasons:
           # the current state no longer concerns me.
+          _msg(time2str(now()), ' -- daemon ', imperative_state.pid,
+                        ' exiting: ', ', '.join(exit_reasons))
           return
 
         # all is well, update the state
