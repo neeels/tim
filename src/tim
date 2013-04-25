@@ -254,6 +254,7 @@ Selecting a time period is done in rough english. Examples:
   tim log 1 month before now       # starts ~30 days ago
   tim log 1 week after 2012-08-31
   tim log 3 months before 2013-01
+
 The words can be abbreviated down to their starting letters, and the default
 amount is 1. These commands are equivalent to those above:
   tim log 2 w
@@ -261,8 +262,12 @@ amount is 1. These commands are equivalent to those above:
   tim log m b n
   tim log w a 2012-08-31
   tim log 3 m b 2013
+
 Available tokens:
-  days weeks months years -- a time unit.
+  days 
+  weeks 
+  months 
+  years         -- time units.
   from <date>   -- take the given date as starting point, including <date>.
   until <date>  -- take the given date as end point, including <date>.
   after <date>  -- like 'from', but EXCLUDING <date>.
@@ -283,13 +288,15 @@ Start with a literal, capital 'W' to issue a week number, with formats:
   'W'WW
   YYYY-'W'WW
 Examples:
- tim log after 2013-01-11 = after 00:00 on 11th of January, 2013.
- '2013-01-11_23:45' = 23:45 on 11th of January, 2013.
- '-10' = 10th of this month, 0:00 AM.
- '-1-1' = first of January, this year.
- '2013' = new year's 2013, 0:00 AM.
- '2012-W20' = twentieth week in 2013
- 'W1' = first week this year
+ tim log 3 days from 2013-01-11 = 11th to 13th of January, 2013.
+ tim log 3 days after 2013-01-11 = 12th to 14th of January, 2013.
+
+ from 2013-01-11_23:45 = 23:45 on 11th of January, 2013.
+ from -10 = 10th of this month, 0:00 AM.
+ from -1-1 = first of January, this year.
+ from 2013 = new year's 2013, 0:00 AM.
+ 2012-W20' = twentieth week in 2013
+ W1' = first week this year
 
 <names> is a list of comma-separated timing names, without spaces. Append '.*'
 to a name to include all its subgroups.
@@ -309,9 +316,6 @@ the end-of-a-day boundary (may be useful if you work around midnight and don't
 want those timings to be divided between two calendar days).
   
 Options:
-  -l <name>
-    Limit the listing to this project (or group).
-
   -f
     Flat. Show timings separately for each group, do not add them up to the
     parent groups. This might help to examine ticked off hours.
@@ -2569,7 +2573,10 @@ class Timelog(Notify):
        'Any two of start, end or amount must be given, ',
        'while the third must be omitted.')
     
-    amount = abs(amount)
+    if amount is None:
+      amount = 1
+    else:
+      amount = abs(amount)
 
     if snap_to_calendar:
       if start is not None:
