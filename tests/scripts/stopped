@@ -1,13 +1,64 @@
 WARP TO 2013-01-01 12
 
 tim new foo
+#O added foo
 tim started foo 10
-tim stopped foo 11
-
+#O started foo
+tim stopped 11
+#O stopped foo (1)
 
 WARP TO 2013-01-02 3
 tim started foo 22
-tim stopped foo 23
+#O started foo
+tim stopped 23
+#O stopped foo (1)
 
 tim log 2 d f 2013-01-01
+#O 2 days, starting around 2013-01-01 00:00, showing entire days.
+#O Tuesday 2013-01-01 00:00 ... Wednesday 2013-01-02 23:59:
+#O 2013-01-01 10:00 foo 1
+#O 2013-01-01 22:00 foo 1
+#O Sum of above timings:
+#O   2 foo
+#O  ==
+#O  +2
 
+WARP TO 2013-01-02 17
+tim started foo 12
+#O started foo
+tim stopped 11
+#E *** Cannot stop before starting time: start = 2013-01-02 12:00; requested stop = 2013-01-02 11:00
+tim
+#O Running: foo=5 (since 2013-01-02 12:00)
+tim stopped 12
+#O stopped foo (0)
+tim log 2 d f 2013-01-01
+#O 2 days, starting around 2013-01-01 00:00, showing entire days.
+#O Tuesday 2013-01-01 00:00 ... Wednesday 2013-01-02 23:59:
+#O 2013-01-01 10:00 foo 1
+#O 2013-01-01 22:00 foo 1
+#O Sum of above timings:
+#O   2 foo
+#O  ==
+#O  +2
+
+cat ~/timelog/2013
+#O 2013-01-01 10:00 foo 1
+#O 2013-01-01 22:00 foo 1
+
+tim started foo 12
+#O started foo
+tim stopped 11
+#E *** Cannot stop before starting time: start = 2013-01-02 12:00; requested stop = 2013-01-02 11:00
+tim stopped 13
+#O stopped foo (1)
+tim log 2 d f 2013-01-01
+#O 2 days, starting around 2013-01-01 00:00, showing entire days.
+#O Tuesday 2013-01-01 00:00 ... Wednesday 2013-01-02 23:59:
+#O 2013-01-01 10:00 foo 1
+#O 2013-01-01 22:00 foo 1
+#O 2013-01-02 12:00 foo 1
+#O Sum of above timings:
+#O   3 foo
+#O  ==
+#O  +3
