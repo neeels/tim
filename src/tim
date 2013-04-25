@@ -236,7 +236,7 @@ Options:
     parent groups. This might help to examine ticked off hours.
 
   -s
-    Show surplus. If you passed a rounding argument, the rounding will
+    Show surplus. If you passed a 'round' argument, the rounding will
     probably have a bit too many or too few minutes after all timings have
     been rounded. This option shows these final surplus minutes.
 
@@ -316,7 +316,13 @@ Options:
     Flat. Show timings separately for each group, do not add them up to the
     parent groups. This might help to examine ticked off hours.
 
-To fix any errors in the logs (because you edited them?), see 'tim help fix'.
+  -s
+    Show surplus. If you passed a 'round' argument, the rounding will
+    probably have a bit too many or too few minutes after all timings have
+    been rounded. This option shows these final surplus minutes.
+
+To fix any errors in the logs, see 'tim help fix' (for example after editing
+any timelog files, if you're into that kind of thing).
 
 --- tim fix ---
 'tim fix' is always a good idea, particularly after you have forged timings,
