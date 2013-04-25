@@ -569,6 +569,27 @@ def str2minutes(str_hours, raise_on_err=True):
       raise FormatError("Not a time string: '", str_hours, "'")
     return None
 
+    self.adjust_start( timeofday2time(new_start_time_of_day_in_minutes) )
+
+def timeofday2time(time_of_day_in_minutes):
+  '''Calculate a full unix timestamp from a given time-of-day.  The time-of-day
+     is given as amount of minutes since 0:00 hours today. If the given
+     time-of-day is later than the current time, it is interpreted as the same
+     time yesterday. E.g. if it is 3:00 AM and you supply 23:00, i.e.  an
+     argument of 23*60, you mean to have started yesterday at 23:00 PM.'''
+  time_now = now()
+  day_start = str2time( time2str(time_now)[:10] + ' 00:00' )
+  minutes_today = (time_now - day_start) / 60
+  if time_of_day_in_minutes > minutes_today:
+    # the user must have meant yesterday.
+    time_of_day_in_minutes -= 24*60
+  return day_start + (time_of_day_in_minutes * 60)
+
+def timeofdaystr2time(str_time_of_day):
+  """like timeofday2time but with a string argument."""
+  return timeofday2time( str2minutes(str_time_of_day) )
+
+
 TIMESTR_FORMAT = "%Y-%m-%d %H:%M"
 FILENAME_TIMESTAMP_FORMAT = "%Y_%m_%d_%H_%M_%S"
 
@@ -2793,17 +2814,27 @@ class Tim(Notify):
       self.timelog.add_name(name)
     self.msg('added ', name)
 
-  def stop(self, comment=None):
+  def stop(self, comment=None, stop_time=None):
     stopped_state = None
     with self.lock:
       stopped_state = self.get_state()
       t = stopped_state.timing
       if t.started:
+        
         if comment:
           if t.comment:
             t.comment = ' '.join((t.comment, comment))
           else:
             t.comment = comment
+        
+        if stop_time:
+          new_minutes = int((stop_time - t.started) / 60)
+          if new_minutes < 0:
+            _raise('Cannot stop before starting time: start = ',
+                   time2str(t.started),
+                   '; requested stop = ', time2str(stop_time))
+          t.minutes = new_minutes
+        
         self.timelog.add_timing(t, directly_to_file=True)
         # clear the state on disk
         empty_state = self.new_state()
@@ -3023,21 +3054,6 @@ class Tim(Notify):
       t.minutes = int((tnow - new_start) / 60)
       state.save()
 
-  def adjust_start_time_of_day(self, new_start_time_of_day_in_minutes):
-    '''Set a currently running timer to have started at a given time-of-day.
-    The time-of-day is given as amount of minutes since 0:00 hours. If the
-    given time-of-day is later than the current time, it is interpreted as
-    the same time yesterday. E.g. if it is 3:00 AM and you supply 23:00, i.e.
-    an argument of 23*60, you mean to have started yesterday at 23:00 PM.'''
-    time_now = now()
-    day_start = str2time( time2str(time_now)[:10] + ' 00:00' )
-    minutes_today = (time_now - day_start) / 60
-    if new_start_time_of_day_in_minutes > minutes_today:
-      # the user must have meant yesterday.
-      new_start_time_of_day_in_minutes -= 24*60
-    new_start = day_start + (new_start_time_of_day_in_minutes * 60)
-    self.adjust_start(new_start)
-
   def adjust_add(self, minutes):
     with self.lock:
       state = self.get_state()
@@ -3222,7 +3238,7 @@ def systray_namespace(*args):
       self.timelog_pango = self.timelog_area.create_pango_layout('')
       self.exposed = 0
 
-      self.toggle_window()
+      # self.toggle_window() # DEBUG -- open window on startup
 
 
     def on_timelog_area_expose(self, area, event):
@@ -3654,10 +3670,10 @@ class TimCmdline:
       _raise("'started' takes at least a name and a time-of-day argument.\n",
              name_syntax_docstr)
     name = self.tim.find_full_name(args[0], allow_none=False)
-    time_of_day = str2minutes(args[1])
+    start_time = timeofdaystr2time(args[1])
     comment = ' '.join(args[2:])
     self.tim.start(name, comment)
-    self.tim.adjust_start_time_of_day(time_of_day)
+    self.tim.adjust_start(start_time)
 
   def cmd_stop(self, *args):
     comment = ' '.join(args)
@@ -3665,6 +3681,16 @@ class TimCmdline:
     # notification
     if not stopped_state:
       _raise('No timer is running.')
+
+  def cmd_stopped(self, *args):
+    if not args:
+      _raise("'stopped' needs a time-of-day argument.")
+    stop_time = timeofdaystr2time(args[0])
+    comment = ' '.join(args[1:])
+    stopped_state = self.tim.stop(comment, stop_time=stop_time)
+    if not stopped_state:
+      _raise('No timer is running.')
+
 
   def cmd_status(self, *args):
     if args:
@@ -3813,7 +3839,7 @@ class TimCmdline:
       _raise("invalid 'adjust' argument: ", e.msg, help_hint)
 
     if cmd == '@':
-      self.tim.adjust_start_time_of_day(minutes_arg)
+      self.tim.adjust_start(timeofday2time(minutes_arg))
     elif cmd == '+':
       self.tim.adjust_add(minutes_arg)
     elif cmd == '-':
