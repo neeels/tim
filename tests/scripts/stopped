@@ -1,0 +1,13 @@
+WARP TO 2013-01-01 12
+
+tim new foo
+tim started foo 10
+tim stopped foo 11
+
+
+WARP TO 2013-01-02 3
+tim started foo 22
+tim stopped foo 23
+
+tim log 2 d f 2013-01-01
+
