@@ -828,6 +828,7 @@ class Notify(object):
   WARN = 5
   ERROR = 6
   FIX_NEEDED = 7
+  STATUS = 8
 
   def __init__(self, notify_func):
     ''' notify_func(key, arg): function that notifies the user; the
@@ -2152,7 +2153,7 @@ class Timelog(Notify):
       self.totals = Totals()
       self.from_query = None
       # the following are not the exact values from the Query instance.
-      # They may me filled up with defaults or matched up with reality...
+      # They may be filled up with defaults or matched up with reality...
       self.start = None
       self.end = None
       self.include_start = None
@@ -2227,6 +2228,16 @@ class Timelog(Notify):
     def add_timing(self, timing):
       self.timings.append(timing)
       self.totals.add_timing(timing)
+
+    def matches_timing(self, timing):
+      return (((timing.started > self.start)
+               or
+               (self.include_start and (timing.started == self.start)))
+              and
+              ((timing.started < self.end)
+               or
+               (self.include_end and (timing.started == self.end)))
+             )
 
     def __repr__(self):
       return ''.join(('[', ','.join((repr(self.timings), repr(self.totals),)),
@@ -2650,14 +2661,7 @@ class Timelog(Notify):
       for timing in year.timings:
         if only and not (timing.name in only):
           continue
-        if (((timing.started > start_date)
-             or
-             (include_start and (timing.started == start_date)))
-            and
-            ((timing.started < end_date)
-             or
-             (include_end and (timing.started == end_date)))
-           ):
+        if result.matches_timing(timing):
           result.add_timing(timing)
       y += 1
 
@@ -2888,7 +2892,7 @@ class Tim(Notify):
   def verify_and_get_state(self, retry=True):
     'fixes any stale timers, then returns the state.'
     with self.lock:
-      state = self.get_state()
+      state = self._get_state_nonlocking()
       if state.timing.started:
         self.handle_stale_state(state)
       return state
@@ -3621,11 +3625,6 @@ class TimCmdline:
       exit(1)
     exit(0)
 
-  def cmd_new(self, *args):
-    if len(args) < 1:
-      _raise("'new' needs an argument: an unknown name to create.")
-    for arg in args:
-      self.tim.new(arg)
 
   def notify(self, key, arg):
     if key == Notify.ALREADY_RUNNING:
@@ -3667,6 +3666,29 @@ class TimCmdline:
               ' hours ago',
             '\n       reason: ', reason,
             )
+    elif key == Notify.STATUS:
+      status = arg
+      t = status.timing
+      if t.started:
+        _msg('Running: ', t.name, '=', minutes2str(t.minutes), ' (since ',
+             time2str(t.started), ')')
+      else:
+        _msg('Not running.')
+
+
+  def cmd_new(self, *args):
+    if len(args) < 1:
+      _raise("'new' needs an argument: an unknown name to create.")
+    for arg in args:
+      self.tim.new(arg)
+
+
+  def cmd_status(self, *args):
+    if args:
+      _raise("'status' takes no arguments")
+    status = self.tim.verify_and_get_state()
+    self.notify(Notify.STATUS, status)
+
 
   def cmd_start(self, *args):
     if len(args) < 1:
@@ -3678,6 +3700,7 @@ class TimCmdline:
              "try 'tim new ", args[0], "' first?", help_hint)
     self.tim.start(name, comment)
 
+
   def cmd_started(self, *args):
     if len(args) < 2:
       _raise("'started' takes at least a name and a time-of-day argument.\n",
@@ -3688,12 +3711,14 @@ class TimCmdline:
     self.tim.start(name, comment)
     self.tim.adjust_start(start_time)
 
+
   def cmd_stop(self, *args):
     comment = ' '.join(args)
     stopped_state = self.tim.stop(comment)
     # notification
     if not stopped_state:
       _raise('No timer is running.')
+
 
   def cmd_stopped(self, *args):
     if not args:
@@ -3704,17 +3729,6 @@ class TimCmdline:
     if not stopped_state:
       _raise('No timer is running.')
 
-
-  def cmd_status(self, *args):
-    if args:
-      _raise("'status' takes no arguments")
-    status = self.tim.verify_and_get_state()
-    t = status.timing
-    if t.started:
-      _msg('Running: ', t.name, '=', minutes2str(t.minutes), ' (since ',
-           time2str(t.started), ')')
-    else:
-      _msg('Not running.')
 
   def cmd_totals(self, *args):
     i = 0
@@ -3743,6 +3757,12 @@ class TimCmdline:
       i += 1
 
     totals = self.tim.timelog.get_totals()
+
+    status = self.tim.get_state()
+    t = status.timing
+    if t.started and t.minutes:
+      totals.add_timing(t)
+
     if totals.is_empty():
       _msg('Nothing is recorded.')
       return
@@ -3789,12 +3809,21 @@ class TimCmdline:
       rounder.clear_surplus()
     for entry in query_result.timings:
       _msg(entry.to_string(rounder=rounder))
+
+    status = self.tim.get_state()
+    totals = query_result.totals
+
+    t = status.timing
+    r = query_result
+    if t.started and t.minutes and query_result.matches_timing(t):
+      _msg(t.to_string(rounder=rounder))
+      totals.add_timing(t)
       
     if rounder:
       surplus1 = rounder.surplus
     
     _msg('Sum of above timings:\n',
-         query_result.totals.to_string(flat=flat, rounder=rounder))
+         totals.to_string(flat=flat, rounder=rounder))
     
     if rounder:
       diff = diff_totals(rounder.surplus, surplus1)

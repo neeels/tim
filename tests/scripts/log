@@ -1,0 +1,51 @@
+WARP TO 2013-04-27 1:06
+-tim new foo
+-tim forge 2013-01-28 12:00 foo 4:30
+-tim fix
+
+
+tim log y
+#O 1 years, ending now, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-28 12:00 foo 4:30
+#O Sum of above timings:
+#O   4:30 foo
+#O  =====
+#O  +4:30
+
+tim totals
+#O Totals:
+#O   4:30 foo
+#O  =====
+#O  +4:30
+
+
+tim started foo 0:06
+#O started foo
+
+tim log y
+#O 1 years, ending now, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-28 12:00 foo 4:30
+#O 2013-04-27 00:06 foo 1
+#O Sum of above timings:
+#O   5:30 foo
+#O  =====
+#O  +5:30
+
+tim totals
+#O Totals:
+#O   5:30 foo
+#O  =====
+#O  +5:30
+
+
+tim log m 2013-01
+#O 1 months, starting around 2013-01-01 00:00, showing entire months.
+#O Tuesday 2013-01-01 00:00 ... Thursday 2013-01-31 23:59:
+#O 2013-01-28 12:00 foo 4:30
+#O Sum of above timings:
+#O   4:30 foo
+#O  =====
+#O  +4:30
+

@@ -1,3 +1,4 @@
+WARP TO 2013-02-01 12:00
 -tim forge 2013-01-01 12:00 foo 1:11
 -tim forge 2013-01-02 12:00 bar 1:07
 -tim forge 2013-01-03 12:00 foo 1:11
@@ -44,6 +45,67 @@ tim log y 2013 round 0:15
 #O  +4:30
 
 
+tim started bar 11:01
+#O started bar
+
+tim totals
+#O Totals:
+#O   3:13 bar
+#O   2:22 foo
+#O  =====
+#O  +5:35
+
+tim totals round 0:15
+#O Totals:
+#O   3:15 bar
+#O   2:15 foo
+#O  =====
+#O  +5:30
+
+tim log y 2013
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 12:00 foo 1:11
+#O 2013-01-02 12:00 bar 1:07
+#O 2013-01-03 12:00 foo 1:11
+#O 2013-01-04 12:00 bar 1:07
+#O 2013-02-01 11:01 bar 0:59
+#O Sum of above timings:
+#O   3:13 bar
+#O   2:22 foo
+#O  =====
+#O  +5:35
+
+tim log y 2013 round 0:15
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 12:00 foo 1:15
+#O 2013-01-02 12:00 bar 1
+#O 2013-01-03 12:00 foo 1
+#O 2013-01-04 12:00 bar 1:15
+#O 2013-02-01 11:01 bar 1
+#O Sum of above timings:
+#O   3:15 bar
+#O   2:15 foo
+#O  =====
+#O  +5:30
+
+tim log m 2013-01 round 0:15
+#O 1 months, starting around 2013-01-01 00:00, showing entire months.
+#O Tuesday 2013-01-01 00:00 ... Thursday 2013-01-31 23:59:
+#O 2013-01-01 12:00 foo 1:15
+#O 2013-01-02 12:00 bar 1
+#O 2013-01-03 12:00 foo 1
+#O 2013-01-04 12:00 bar 1:15
+#O Sum of above timings:
+#O   2:15 bar
+#O   2:15 foo
+#O  =====
+#O  +4:30
+
+tim stop
+#O stopped bar (0:59)
+
 -mv ./timelog ./older_timelog_1
 
 -tim forge 2012-01-11 12:00 aaa +1:01
@@ -63,6 +125,24 @@ tim totals round 1 -s
 #O   0:03 ccc
 #O  =====
 #O  +0:06
+
+tim started aaa 11:01
+#O started aaa
+tim totals round 1 -s
+#O Totals:
+#O   2 aaa
+#O   2 bbb
+#O   3 ccc
+#O  ==
+#O  +7
+#O Rounding surplus:
+#O   0:02 bbb
+#O   0:03 ccc
+#O  =====
+#O  +0:05
+
+tim stopped 11:01
+#O stopped aaa (0)
 
 -mv ./timelog ./older_timelog_2
 -tim forge 2013-01-01 12:00 x 1:10
@@ -97,6 +177,38 @@ tim log year 2013 round 1 -s
 #O   0:10 x
 #O  =====
 #O  +0:10
+
+tim started x 11:01
+#O started x
+tim totals round 1 -s only x
+#O Totals, selection:
+#O   8 x
+#O  ==
+#O  +8
+#O Rounding surplus:
+#O   0:09 x
+#O  =====
+#O  +0:09
+
+tim log year 2013 round 1 -s
+#O 1 years, starting around 2013-01-01 00:00, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-01-01 12:00 x 1
+#O 2013-01-02 12:00 x 1
+#O 2013-01-03 12:00 x 2
+#O 2013-01-04 12:00 x 1
+#O 2013-01-05 12:00 x 2
+#O 2013-02-01 11:01 x 1
+#O Sum of above timings:
+#O   8 x
+#O  ==
+#O  +8
+#O Rounding surplus:
+#O   0:09 x
+#O  =====
+#O  +0:09
+tim stopped 11:01
+#O stopped x (0)
 
 -tim forge 2013-01-01 14:00 x.y 1:10
 -tim forge 2013-01-02 14:00 x.y 1:10
