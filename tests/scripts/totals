@@ -1,0 +1,15 @@
+WARP TO 2013-05-09 00:55
+
+-tim forge 2013-05-08 12:00 one 1:01
+-tim forge 2013-05-08 14:00 two 2
+
+tim log d f 2013-05-08
+#O 1 days, starting around 2013-05-08 00:00, showing entire days.
+#O Wednesday 2013-05-08 00:00 ... Wednesday 2013-05-08 23:59:
+#O 2013-05-08 12:00 one 1:01
+#O 2013-05-08 14:00 two 2
+#O Sum of above timings:
+#O   1:01 one
+#O   2:   two
+#O  =====
+#O  +3:01

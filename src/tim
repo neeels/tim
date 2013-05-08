@@ -64,7 +64,7 @@ Command line usage:
 --- tim systray ---
 Launch a systray icon. Tim should appear in your window manager's taskbar. Put
 'tim systray' in your window manager's autostart. If you click the systray
-icon, you can interact with Tim using your mouse ... if you're like that.
+icon, you can interact with Tim using your mouse ... if you like that.
 
 --- tim help ---
 'tim help' without arguments shows a short usage of all commands.
@@ -1277,6 +1277,7 @@ class Totals:
       OWN = '^own'
       OWNSTR = '^ownstr'
       SUMSTR = '^sumstr'
+      SUM_SAME_AS_OWN = '^same'
       TIME_LEN = '^time_len'
       
       groups = {}
@@ -1310,6 +1311,7 @@ class Totals:
                                  last_name=child_name)
           minutes_sum += sub_sum
         a_dict[SUMSTR] = minutes2str(minutes_sum)
+        a_dict[SUM_SAME_AS_OWN] = (minutes_sum == own_minutes)
         return minutes_sum
       #end of trickle_sums()
 
@@ -1319,8 +1321,6 @@ class Totals:
         lines = []
         own_hours = a_dict.get(OWNSTR) or ''
         group_sum = a_dict.get(SUMSTR) or '0'
-
-        own_same_as_group = (own_hours == group_sum)
 
         has_minutes = False
 
@@ -1353,7 +1353,7 @@ class Totals:
 
         len_fmt = r'%' + str(max_len) + 's'
 
-        if own_hours and (not own_same_as_group):
+        if own_hours and (not a_dict.get(SUM_SAME_AS_OWN)):
           lines.append(msgs2str(' ' * indent, len_fmt % own_hours, ' ^'))
         
         child_indent = indent + max_len + 1
