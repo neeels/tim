@@ -62,3 +62,40 @@ tim log 2 d f 2013-01-01
 #O   3 foo
 #O  ==
 #O  +3
+
+
+WARP TO 2013-01-03 12
+
+tim started foo 11
+#O started foo
+tim stopped -:10
+#O stopped foo (0:50)
+tim log d
+#O 1 days, ending now, showing entire days.
+#O Thursday 2013-01-03 00:00 ... Thursday 2013-01-03 23:59:
+#O 2013-01-03 11:00 foo 0:50
+#O Sum of above timings:
+#O   0:50 foo
+#O  =====
+#O  +0:50
+
+
+WARP TO 2013-01-03 13
+tim started foo 12:30
+#O started foo
+tim stopped -2
+#E *** Cannot stop before starting time: start = 2013-01-03 12:30; requested stop = 2013-01-03 11:00
+tim
+#O Running: foo=0:30 (since 2013-01-03 12:30)
+tim stopped -0.05
+#O stopped foo (0:27)
+tim log d
+#O 1 days, ending now, showing entire days.
+#O Thursday 2013-01-03 00:00 ... Thursday 2013-01-03 23:59:
+#O 2013-01-03 11:00 foo 0:50
+#O 2013-01-03 12:30 foo 0:27
+#O Sum of above timings:
+#O   1:17 foo
+#O  =====
+#O  +1:17
+

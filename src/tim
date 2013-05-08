@@ -183,15 +183,6 @@ If you pass a negative time, 'stopped' subtracts hours from the current time.
 If you forgot to stop the timer two and a quarter hours ago, simply call:
   tim stopped -2:15
 
-Another way would be to subtract the surplus hours and stop then.
-  tim adjust -2:15
-  tim stop
-This corrects the duration recorded in the logs, but it moves the starting
-time forward by two hours fifteen minutes. If you want your logs to show
-exactly at what times you started and stopped working, rather use the
-'stopped' command, as it preserves the starting time and adjusts the stopping
-time instead.
-
 To change the starting time without stopping the timer, see 'tim help adjust'.
 
 --- tim totals ---
@@ -3723,7 +3714,12 @@ class TimCmdline:
   def cmd_stopped(self, *args):
     if not args:
       _raise("'stopped' needs a time-of-day argument.")
-    stop_time = timeofdaystr2time(args[0])
+    time_arg = args[0]
+    if time_arg.startswith('-'):
+      minutes_ago = str2minutes(time_arg)
+      stop_time = now() - (60 * abs(minutes_ago))
+    else:
+      stop_time = timeofdaystr2time(time_arg)
     comment = ' '.join(args[1:])
     stopped_state = self.tim.stop(comment, stop_time=stop_time)
     if not stopped_state:
