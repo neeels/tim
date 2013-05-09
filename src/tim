@@ -3260,14 +3260,14 @@ def systray_namespace(*args):
       self.yzoom = 1.
       self.end_time = date_end_of(UNIT_DAY, now()) - 1
 
-      #self.toggle_window() # DEBUG -- open window on startup
+      self.toggle_window() # DEBUG -- open window on startup
 
 
     def on_timelog_area_expose(self, area, event):
       if not self.colormap:
         self.colormap = self.timelog_area.window.get_colormap()
         self.col_even = self.colormap.alloc_color('#ffffff')
-        self.col_odd = self.colormap.alloc_color('#eeeedd')
+        self.col_odd = self.colormap.alloc_color('#eeeee8')
       style = self.timelog_area.get_style()
       gc = style.fg_gc[gtk.STATE_NORMAL]
       drawable = self.timelog_area.window
@@ -3275,7 +3275,7 @@ def systray_namespace(*args):
       u = event.area
 
       DAY_HEIGHT = 30
-      HOUR_WIDTH = 30
+      HOUR_WIDTH = w / 24
                      
       print time2str(self.end_time)
       beginning_of_last_day = date_beginning_of(UNIT_DAY, self.end_time)
@@ -3309,9 +3309,12 @@ def systray_namespace(*args):
         t = time2date(day_time) + ' ' + time2weekdaystr(day_time)
         xpos = 0
         ypos = int(h - (day + 1) * DAY_HEIGHT)
-        print ypos, even, gc_used
+        print ypos, even
         drawable.draw_rectangle(gc_used, True, xpos, ypos, w, DAY_HEIGHT)
-        self.pango_day.set_markup('<span color="#88aa88"><b><big>%s</big></b></span>'%t)
+        self.pango_day.set_markup('<span color="#aaccaa"><b><big>%s</big></b></span>'%t)
+        pw, ph = self.pango_day.get_pixel_size()
+        print pw, ph
+        ypos += (DAY_HEIGHT - ph) / 2
         drawable.draw_layout(gc, xpos, ypos, self.pango_day)
 
       for timing in result.timings:
