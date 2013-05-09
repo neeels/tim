@@ -592,12 +592,16 @@ def timeofdaystr2time(str_time_of_day):
 
 
 TIMESTR_FORMAT = "%Y-%m-%d %H:%M"
+DATESTR_FORMAT = "%Y-%m-%d"
 FILENAME_TIMESTAMP_FORMAT = "%Y_%m_%d_%H_%M_%S"
 
 def time2str(float_time, fmt=TIMESTR_FORMAT):
   if not float_time:
     return None
   return time.strftime(fmt, time.localtime(float(float_time)))
+
+def time2date(float_time):
+  return time2str(float_time, DATESTR_FORMAT)
 
 def str2time(string, fmt=TIMESTR_FORMAT):
   if not string or len(string) < 1:
@@ -606,6 +610,9 @@ def str2time(string, fmt=TIMESTR_FORMAT):
 
 def time2year(float_time):
   return int(time.localtime(float_time).tm_year)
+
+def time2hourofday(float_time):
+  return int(time.localtime(float_time).tm_hour)
 
 def time2weekday(float_time):
   # time_struct has monday == 0, while strptime() has sunday == 0.
@@ -3244,30 +3251,79 @@ def systray_namespace(*args):
       self.timelog_area = wb.get_object('timelog_area')
       self.timelog_area.connect('expose-event', self.on_timelog_area_expose)
       self.timelog_pango = self.timelog_area.create_pango_layout('')
+      self.pango_day = self.timelog_area.create_pango_layout('')
       self.exposed = 0
 
-      # self.toggle_window() # DEBUG -- open window on startup
+      self.colormap = None
+
+      self.xzoom = 1.
+      self.yzoom = 1.
+      self.end_time = date_end_of(UNIT_DAY, now()) - 1
+
+      #self.toggle_window() # DEBUG -- open window on startup
 
 
     def on_timelog_area_expose(self, area, event):
+      if not self.colormap:
+        self.colormap = self.timelog_area.window.get_colormap()
+        self.col_even = self.colormap.alloc_color('#ffffff')
+        self.col_odd = self.colormap.alloc_color('#eeeedd')
       style = self.timelog_area.get_style()
       gc = style.fg_gc[gtk.STATE_NORMAL]
       drawable = self.timelog_area.window
       x,y,w,h,d = drawable.get_geometry()
       u = event.area
-      t = str(now() % 10)
-      if (u.x < 0.5*w) or (u.y < 0.5*h):
-        drawable.draw_line(gc, *[int(v) for v in (0.1 * w, 0.1*h, 0.49*w, 0.49*h)])
-        #_debug("TOP")
+
+      DAY_HEIGHT = 30
+      HOUR_WIDTH = 30
+                     
+      print time2str(self.end_time)
+      beginning_of_last_day = date_beginning_of(UNIT_DAY, self.end_time)
+      print time2str(beginning_of_last_day)
+
+      days_shown = int(math.ceil( float(h) / DAY_HEIGHT ))
+      if days_shown < 1:
+        days_shown = 1
+      print h, DAY_HEIGHT, days_shown
+      start_time = date_subtract(days_shown - 1, UNIT_DAY, beginning_of_last_day)
+
+      log_query = Timelog.Query(unit=UNIT_DAY,
+                                start=start_time, end=self.end_time,
+                                include_start=True, include_end=True,
+                                snap_to_calendar=False)
+
+      result = self.tim.timelog.run_query(log_query)
+      print result.description_str()
+
+      even_line = drawable.new_gc(foreground=self.col_even)
+      odd_line = drawable.new_gc(foreground=self.col_odd)
+      even = True
+      for day in range(days_shown):
+        even = not even
+        if not even:
+          gc_used = odd_line
+        else:
+          gc_used = even_line
+        day_time = date_subtract(day, UNIT_DAY, beginning_of_last_day)
+        print time2str(beginning_of_last_day), time2str(day_time)
+        t = time2date(day_time) + ' ' + time2weekdaystr(day_time)
+        xpos = 0
+        ypos = int(h - (day + 1) * DAY_HEIGHT)
+        print ypos, even, gc_used
+        drawable.draw_rectangle(gc_used, True, xpos, ypos, w, DAY_HEIGHT)
+        self.pango_day.set_markup('<span color="#88aa88"><b><big>%s</big></b></span>'%t)
+        drawable.draw_layout(gc, xpos, ypos, self.pango_day)
+
+      for timing in result.timings:
+        t = '%s(%s)%s' % (timing.name, minutes2str(timing.minutes), time2str(timing.started))
+        xpos = HOUR_WIDTH * time2hourofday(timing.started)
+        day = float(abs( date_beginning_of(UNIT_DAY, timing.started)
+                         - beginning_of_last_day
+                   )) / (24.*60*60)
+        ypos = h - (day + 1) * DAY_HEIGHT
         self.timelog_pango.set_text(t)
-        drawable.draw_layout(gc, int(0.3*w), int(0.3*h), self.timelog_pango)
-      if (u.x+u.width > 0.5*w) or (u.y+u.height > 0.5*h):
-        drawable.draw_line(gc, *[int(v) for v in (0.51 * w, 0.51*h, 0.9*w, 0.9*h)])
-        # _debug("BOT")
-        self.timelog_pango.set_text(t)
-        drawable.draw_layout(gc, int(0.6*w), int(0.6*h), self.timelog_pango)
-      self.exposed += 1
-      #_debug(self.exposed, ' exposures ', event.area, ' ', drawable.get_geometry())
+        drawable.draw_layout(gc, int(xpos), int(ypos), self.timelog_pango)
+
       return True
 
     def notify(self, key, arg):
