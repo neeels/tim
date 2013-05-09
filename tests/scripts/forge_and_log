@@ -1,11 +1,12 @@
 tim totals
 #O Nothing is recorded.
 
-tim forge 2012-01-11 12:00 aaa +1:1
+tim forge new 2012-01-11 12:00 aaa +1:1
+#O added aaa
 #O forged 2012-01-11 12:00 aaa 1:01
 #O *** remember to call 'tim fix 2012' at some point.
--tim forge 2012-03-13 12:00 ccc +:33
--tim forge 2012-02-12 12:00 bbb +2.2
+-tim forge new 2012-03-13 12:00 ccc +:33
+-tim forge new 2012-02-12 12:00 bbb +2.2
 
 tim log year 2012
 #O 1 years, starting around 2012-01-01 00:00, showing entire years.
@@ -31,7 +32,9 @@ tim fix
 #O ** sorted entries in 2012
 #O Errors fixed: 1
 
--tim forge 2011-01-30 12:00 aaa +11
+tim forge 2011-01-30 12:00 aaa +11
+#O forged 2011-01-30 12:00 aaa 11
+#O *** remember to call 'tim fix 2011' at some point.
 tim fix
 #O ** fixing: the initial totals in 2012 are wrong.
 #O  - 'aaa' is missing, should be 11

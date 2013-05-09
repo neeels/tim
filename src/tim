@@ -41,7 +41,7 @@ Launch a systray icon and GUI:
 Command line usage:
   tim help [all|examples|<command-name>]
   tim [status]
-  tim new <project-name>
+  tim new <project-name> [<project-name> [...]]
   tim [start] <project-name> [-- <comment>]
   tim started <project-name> <time-of-day> [-- <comment>]
   tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
@@ -53,10 +53,9 @@ Command line usage:
           [sum [<nr>] hours|days|weeks|months|years] \
           [round <duration>] [only <name>[.*][,...]] [-f]
   tim fix [<start-year>] [--clear] [--overlaps=shift|drop|ignore]
-  tim tickoff <name> <hours> 
-  tim tickoff <hours> <name> 
+  tim tickoff <name> <hours> [<date> [<time>]] [-- <comment>]
   tim tickoff --undo
-  tim forge <start-date> <start-time> <name> <hours> [-- <comment>]
+  tim forge [new] <start-date> <start-time> <name> <hours> [-- <comment>]
   tim rename <name> <new-name>
   tim forget <name>
   tim recall [<id>] [--as <name>] [--add-to <name>]
@@ -84,6 +83,9 @@ Announce a new project name. You can use dots '.' to create subgroups of
 projects.
   tim new foo
   tim new yoyodyne.abc
+
+You can create any number of names at the same time
+  tim new foo yoyodyne.abc third_name
 
 --- tim start ---
 When you start working on a given project, call 'tim start my_name'. The word
@@ -3110,10 +3112,12 @@ class Tim(Notify):
     yearnr = time2year(t.started)
     self.notify(Notify.FIX_NEEDED, yearnr)
 
-  def tickoff(self, name, minutes, comment=None):
+  def tickoff(self, name, minutes, comment=None, start_time=None):
     if minutes < 0:
       _raise('no negative tickoff allowed.')
-    t = self._forge(name, now(), -minutes, comment)
+    if not start_time:
+      start_time = now()
+    t = self._forge(name, start_time, -minutes, comment)
     self.notify(Notify.MSG, msgs2str('ticked off: ', repr(t)))
 
   def find_full_name(self, name, allow_none=True):
@@ -3754,6 +3758,16 @@ class TimCmdline:
         _msg('Not running.')
 
 
+  def strip_comment(self, args):
+    comment = None
+    if '--' in args:
+      split_point = args.index('--')
+      if split_point < (len(args) - 1):
+        comment = ' '.join(args[split_point+1:])
+      args = args[:split_point]
+    return args, comment
+
+
   def cmd_new(self, *args):
     if len(args) < 1:
       _raise("'new' needs an argument: an unknown name to create.")
@@ -3769,10 +3783,10 @@ class TimCmdline:
 
 
   def cmd_start(self, *args):
+    args, comment = self.strip_comment(args)
     if len(args) < 1:
       _raise("'start' takes a name argument.\n", name_syntax_docstr)
     name = self.tim.find_full_name(args[0])
-    comment = ' '.join(args[1:])
     if not name:
       _raise("Unknown name: '", args[0], "' -- ",
              "try 'tim new ", args[0], "' first?", help_hint)
@@ -3780,18 +3794,18 @@ class TimCmdline:
 
 
   def cmd_started(self, *args):
+    args, comment = self.strip_comment(args)
     if len(args) < 2:
       _raise("'started' takes at least a name and a time-of-day argument.\n",
              name_syntax_docstr)
     name = self.tim.find_full_name(args[0], allow_none=False)
     start_time = timeofdaystr2time(args[1])
-    comment = ' '.join(args[2:])
     self.tim.start(name, comment)
     self.tim.adjust_start(start_time)
 
 
   def cmd_stop(self, *args):
-    comment = ' '.join(args)
+    args, comment = self.strip_comment(args)
     stopped_state = self.tim.stop(comment)
     # notification
     if not stopped_state:
@@ -3799,6 +3813,7 @@ class TimCmdline:
 
 
   def cmd_stopped(self, *args):
+    args, comment = self.strip_comment(args)
     if not args:
       _raise("'stopped' needs a time-of-day argument.")
     time_arg = args[0]
@@ -3807,7 +3822,6 @@ class TimCmdline:
       stop_time = now() - (60 * abs(minutes_ago))
     else:
       stop_time = timeofdaystr2time(time_arg)
-    comment = ' '.join(args[1:])
     stopped_state = self.tim.stop(comment, stop_time=stop_time)
     if not stopped_state:
       _raise('No timer is running.')
@@ -3976,17 +3990,42 @@ class TimCmdline:
     self.cmd_status()
 
   def cmd_forge(self, *args):
+    args, comment = self.strip_comment(args)
+
+    create_new = False
+    if len(args) > 1 and args[0] == 'new':
+      args = args[1:]
+      create_new = True
+
     if len(args) != 4:
       _raise("'forge' needs a start date, time-of-day, a name and a duration.",
              '\n  forge 2012-12-31 23:59 champagne 6:31')
 
     d, t, name, duration = args
+    if not ':' in t:
+      t += ':00'
     date = '%s %s' % (d, t)
-    self.tim.forge(name, str2time(date), str2minutes(duration))
+
+    if not name:
+      _raise('I need a nonempty name argument.')
+
+    if create_new:
+      self.tim.new(name)
+      full_name = name
+    else:
+      full_name = self.tim.find_full_name(name)
+      if not full_name:
+        _raise("Unknown name: '", name, "' -- ",
+               "try 'tim new ", name, "' first?", help_hint)
+
+    self.tim.forge(full_name, str2time(date), str2minutes(duration), comment)
+
 
   def cmd_tickoff(self, *args):
+    args, comment = self.strip_comment(args)
+
     if '--undo' in args:
-      if len(args) != 1:
+      if len(args) != 1 or comment:
         _raise('--undo cannot be combined with other arguments.')
       t = self.tim.undo_last_tickoff()
       if t:
@@ -3997,25 +4036,37 @@ class TimCmdline:
 
     name = None
     minutes = None
+    start_time = None
+    if not comment:
+      comment = 'tickoff'
 
-    for arg in args:
-      if minutes is None:
-        minutes = str2minutes(arg, raise_on_err=False)
-        if minutes is not None:
-          continue
-      if name is None:
-        name = self.tim.find_full_name(arg)
-        if name is not None:
-          continue
-      _raise("unknown argument: '", arg, "'")
+    if len(args) >= 2:
+      name = args[0]
+      minutes = str2minutes(args[1], raise_on_err=False)
 
     if not name:
       _raise('I need a name argument.')
 
     if not minutes: # catch both None and zero
-      _raise('I need a time argument.')
+      _raise('I need a nonzero time argument (like 1:23 for one hour 23 minutes).')
 
-    self.tim.tickoff(name, minutes, comment='tickoff')
+    full_name = self.tim.find_full_name(name)
+    if not full_name:
+      _raise("Unknown name: '", name, "' -- ",
+             "try 'tim new ", name, "' first?", help_hint)
+
+    if len(args) > 2:
+      date_str = args[2]
+      if len(args) > 3:
+        time_str = args[3]
+        if not ':' in time_str:
+          time_str += ':00'
+      else:
+        time_str = '23:59'
+      start_time = str2time('%s %s'%(date_str, time_str))
+
+    self.tim.tickoff(full_name, minutes, comment=comment, start_time=start_time)
+
 
   def cmd_rename(self, *args):
     if len(args) < 2:

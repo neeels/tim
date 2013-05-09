@@ -1,6 +1,6 @@
--tim forge 2012-01-11 12:00 aaa +1:01
--tim forge 2012-02-12 12:00 bbb +2:02
--tim forge 2012-03-13 12:00 ccc +3:03
+-tim forge new 2012-01-11 12:00 aaa +1:01
+-tim forge new 2012-02-12 12:00 bbb +2:02
+-tim forge new 2012-03-13 12:00 ccc +3:03
 
 tim log year 2012 -x
 #E *** Invalid argument: '-x' (word 3)

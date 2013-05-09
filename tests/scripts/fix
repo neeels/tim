@@ -1,5 +1,5 @@
--tim forge 2013-01-01 00:00 over 2
--tim forge 2013-01-01 01:00 lap 2
+-tim forge new 2013-01-01 00:00 over 2
+-tim forge new 2013-01-01 01:00 lap 2
 
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
@@ -63,7 +63,7 @@ tim log year 2013
 #O  ==
 #O  +4
 
--tim forge 2013-01-01 01:00 lap2 2
+-tim forge new 2013-01-01 01:00 lap2 2
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
@@ -105,7 +105,7 @@ tim log year 2013
 #O  ==
 #O  +6
 
--tim forge 2013-01-01 01:00 lap3 2
+-tim forge new 2013-01-01 01:00 lap3 2
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
@@ -156,7 +156,8 @@ tim log year 2013
 
 tim new zero
 #O added zero
-tim forge 2012-01-01 00:00 one 1
+tim forge new 2012-01-01 00:00 one 1
+#O added one
 #O forged 2012-01-01 00:00 one 1
 #O *** remember to call 'tim fix 2012' at some point.
 tim fix

@@ -22,15 +22,9 @@ tim totals
 #O  ===
 #O  -10
 
-WARP TO 2013-01-02 15
--tim b
--tim =3
--tim stop
-WARP TO 2013-01-03 15
--tim d
--tim =3
--tim stop
--tim fix --overlaps=shift
+-tim forge 2013-01-02 12 b 3
+-tim forge 2013-01-03 12 d 3
+-tim fix
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
@@ -92,17 +86,15 @@ tim log year 2013
 tim fix
 #O All correct.
 
-WARP TO 2013-02-01 12
-tim tickoff d 1
-#O ticked off: 2013-02-01 12:00 a.c.d -1 # tickoff
-WARP TO 2013-02-01 13
-tim tickoff c 1
-#O ticked off: 2013-02-01 13:00 a.c -1 # tickoff
-WARP TO 2013-02-01 14
-tim tickoff b 2
-#O ticked off: 2013-02-01 14:00 a.b -2 # tickoff
 WARP TO 2013-02-01 15
-tim tickoff a 3
+
+tim tickoff d 1 2013-02-01 12:00
+#O ticked off: 2013-02-01 12:00 a.c.d -1 # tickoff
+tim tickoff c 1 2013-02-01 13
+#O ticked off: 2013-02-01 13:00 a.c -1 # tickoff
+tim tickoff b 2 2013-02-01 14
+#O ticked off: 2013-02-01 14:00 a.b -2 # tickoff
+tim tickoff a 3 2013-02-01 15
 #O ticked off: 2013-02-01 15:00 a -3 # tickoff
 tim fix
 #O All correct.

@@ -1,4 +1,5 @@
 WARP TO 2013-02-01 12:00
+-tim new foo bar
 -tim forge 2013-01-01 12:00 foo 1:11
 -tim forge 2013-01-02 12:00 bar 1:07
 -tim forge 2013-01-03 12:00 foo 1:11
@@ -108,9 +109,9 @@ tim stop
 
 -mv ./timelog ./older_timelog_1
 
--tim forge 2012-01-11 12:00 aaa +1:01
--tim forge 2012-02-12 12:00 bbb +2:02
--tim forge 2012-03-13 12:00 ccc +3:03
+-tim forge new 2012-01-11 12:00 aaa +1:01
+-tim forge new 2012-02-12 12:00 bbb +2:02
+-tim forge new 2012-03-13 12:00 ccc +3:03
 
 tim totals round 1 -s
 #O Totals:
@@ -145,6 +146,7 @@ tim stopped 11:01
 #O stopped aaa (0)
 
 -mv ./timelog ./older_timelog_2
+-tim new x
 -tim forge 2013-01-01 12:00 x 1:10
 -tim forge 2013-01-02 12:00 x 1:10
 -tim forge 2013-01-03 12:00 x 1:10
@@ -210,6 +212,7 @@ tim log year 2013 round 1 -s
 tim stopped 11:01
 #O stopped x (0)
 
+-tim new x.y
 -tim forge 2013-01-01 14:00 x.y 1:10
 -tim forge 2013-01-02 14:00 x.y 1:10
 -tim forge 2013-01-03 14:00 x.y 1:10
@@ -253,6 +256,7 @@ tim log year 2013 round 1 -s
 
 -mv ./timelog ./older_timelog_3
 
+-tim new x y
 -tim forge 2013-01-01 12:00 x 1:28
 -tim forge 2013-01-02 12:00 x 1:51
 -tim forge 2013-01-03 12:00 y 1:28
