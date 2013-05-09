@@ -592,6 +592,7 @@ def timeofdaystr2time(str_time_of_day):
 
 
 TIMESTR_FORMAT = "%Y-%m-%d %H:%M"
+TIME_OF_DAY_FORMAT = "%H:%M"
 DATESTR_FORMAT = "%Y-%m-%d"
 FILENAME_TIMESTAMP_FORMAT = "%Y_%m_%d_%H_%M_%S"
 
@@ -611,8 +612,12 @@ def str2time(string, fmt=TIMESTR_FORMAT):
 def time2year(float_time):
   return int(time.localtime(float_time).tm_year)
 
+def time2dayofmonth(float_time):
+  return int(time.localtime(float_time).tm_mday)
+
 def time2hourofday(float_time):
-  return int(time.localtime(float_time).tm_hour)
+  l = time.localtime(float_time)
+  return float(l.tm_hour) + float(l.tm_min)/60.
 
 def time2weekday(float_time):
   # time_struct has monday == 0, while strptime() has sunday == 0.
@@ -3266,8 +3271,10 @@ def systray_namespace(*args):
     def on_timelog_area_expose(self, area, event):
       if not self.colormap:
         self.colormap = self.timelog_area.window.get_colormap()
-        self.col_even = self.colormap.alloc_color('#ffffff')
-        self.col_odd = self.colormap.alloc_color('#eeeee8')
+        self.col_even = self.colormap.alloc_color('#f8f8f8')
+        self.col_odd = self.colormap.alloc_color('#ffffff')
+        self.col_we = self.colormap.alloc_color('#eeeeee')
+        self.col_vline = self.colormap.alloc_color('#ffffff')
       style = self.timelog_area.get_style()
       gc = style.fg_gc[gtk.STATE_NORMAL]
       drawable = self.timelog_area.window
@@ -3297,34 +3304,55 @@ def systray_namespace(*args):
 
       even_line = drawable.new_gc(foreground=self.col_even)
       odd_line = drawable.new_gc(foreground=self.col_odd)
-      even = True
+      we_line = drawable.new_gc(foreground=self.col_we)
+      vline = drawable.new_gc(foreground=self.col_vline)
       for day in range(days_shown):
-        even = not even
-        if not even:
+        xpos = 0
+        ypos = int(h - (day + 1) * DAY_HEIGHT)
+        day_time = date_subtract(day, UNIT_DAY, beginning_of_last_day)
+        dow = time2weekday(day_time)
+        dom = time2dayofmonth(day_time)
+        if dow in [0, 6]:
+          gc_used = we_line
+        elif dow % 2:
           gc_used = odd_line
         else:
           gc_used = even_line
-        day_time = date_subtract(day, UNIT_DAY, beginning_of_last_day)
-        print time2str(beginning_of_last_day), time2str(day_time)
-        t = time2date(day_time) + ' ' + time2weekdaystr(day_time)
-        xpos = 0
-        ypos = int(h - (day + 1) * DAY_HEIGHT)
-        print ypos, even
-        drawable.draw_rectangle(gc_used, True, xpos, ypos, w, DAY_HEIGHT)
-        self.pango_day.set_markup('<span color="#aaccaa"><b><big>%s</big></b></span>'%t)
+        drawable.draw_rectangle(gc_used, True, xpos, ypos + 1, w, DAY_HEIGHT - 1)
+        for hour in range(1,24):
+          xx = xpos + (hour * w / 24)
+          drawable.draw_line(vline, xx, ypos, xx, ypos + DAY_HEIGHT - 1)
+        if dom == 1:
+          drawable.draw_line(gc, xpos, ypos, w, ypos)
+        else:
+          drawable.draw_line(vline, xpos, ypos, w, ypos)
+        if ((ypos >= 0 and ypos <= DAY_HEIGHT)
+            or (dom == 1)):
+          t = time2date(day_time)
+        else:
+          t = str(time2dayofmonth(day_time))
+
+        self.pango_day.set_markup('<span color="#aaccaa"><b><big>%s</big></b> %s</span>'%(
+                                   t, time2weekdaystr(day_time)))
+
         pw, ph = self.pango_day.get_pixel_size()
-        print pw, ph
         ypos += (DAY_HEIGHT - ph) / 2
         drawable.draw_layout(gc, xpos, ypos, self.pango_day)
 
       for timing in result.timings:
-        t = '%s(%s)%s' % (timing.name, minutes2str(timing.minutes), time2str(timing.started))
-        xpos = HOUR_WIDTH * time2hourofday(timing.started)
+        t = '%s+%s' % (
+                       time2str(timing.started, TIME_OF_DAY_FORMAT),
+                       minutes2str(timing.minutes),
+                          )
+        #t = minutes2str(timing.minutes)
+        xpos = time2hourofday(timing.started) * w / 24
         day = float(abs( date_beginning_of(UNIT_DAY, timing.started)
                          - beginning_of_last_day
                    )) / (24.*60*60)
         ypos = h - (day + 1) * DAY_HEIGHT
         self.timelog_pango.set_text(t)
+        pw, ph = self.timelog_pango.get_pixel_size()
+        ypos += (DAY_HEIGHT - ph) / 2
         drawable.draw_layout(gc, int(xpos), int(ypos), self.timelog_pango)
 
       return True
