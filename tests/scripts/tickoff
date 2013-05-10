@@ -2,12 +2,12 @@
 
 WARP TO 2013-01-01
 tim tickoff a 10
-#O ticked off: 2013-01-01 00:00 a -10 # tickoff
+#O ticked off: 2013-01-01 00:00 a -10 -- tickoff
 
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
-#O 2013-01-01 00:00 a -10 # tickoff
+#O 2013-01-01 00:00 a -10 -- tickoff
 #O Sum of above timings:
 #O  -10 a
 #O  ===
@@ -28,7 +28,7 @@ tim totals
 tim log year 2013
 #O 1 years, starting around 2013-01-01 00:00, showing entire years.
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
-#O 2013-01-01 00:00 a -10 # tickoff
+#O 2013-01-01 00:00 a -10 -- tickoff
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
 #O Sum of above timings:
@@ -61,7 +61,7 @@ tim totals -f
 #O     -4    
 
 tim tickoff --undo
-#O Tickoff undone: 2013-01-01 00:00 a -10 # tickoff
+#O Tickoff undone: 2013-01-01 00:00 a -10 -- tickoff
 tim totals
 #O Totals:
 #O   6 a
@@ -89,13 +89,13 @@ tim fix
 WARP TO 2013-02-01 15
 
 tim tickoff d 1 2013-02-01 12:00
-#O ticked off: 2013-02-01 12:00 a.c.d -1 # tickoff
+#O ticked off: 2013-02-01 12:00 a.c.d -1 -- tickoff
 tim tickoff c 1 2013-02-01 13
-#O ticked off: 2013-02-01 13:00 a.c -1 # tickoff
+#O ticked off: 2013-02-01 13:00 a.c -1 -- tickoff
 tim tickoff b 2 2013-02-01 14
-#O ticked off: 2013-02-01 14:00 a.b -2 # tickoff
+#O ticked off: 2013-02-01 14:00 a.b -2 -- tickoff
 tim tickoff a 3 2013-02-01 15
-#O ticked off: 2013-02-01 15:00 a -3 # tickoff
+#O ticked off: 2013-02-01 15:00 a -3 -- tickoff
 tim fix
 #O All correct.
 tim totals
@@ -114,10 +114,10 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
-#O 2013-02-01 12:00 a.c.d -1 # tickoff
-#O 2013-02-01 13:00 a.c -1 # tickoff
-#O 2013-02-01 14:00 a.b -2 # tickoff
-#O 2013-02-01 15:00 a -3 # tickoff
+#O 2013-02-01 12:00 a.c.d -1 -- tickoff
+#O 2013-02-01 13:00 a.c -1 -- tickoff
+#O 2013-02-01 14:00 a.b -2 -- tickoff
+#O 2013-02-01 15:00 a -3 -- tickoff
 #O Sum of above timings:
 #O  -1 a
 #O     -3 ^
@@ -128,7 +128,7 @@ tim log year 2013
 #O  ==
 #O  -1
 tim tickoff --undo
-#O Tickoff undone: 2013-02-01 15:00 a -3 # tickoff
+#O Tickoff undone: 2013-02-01 15:00 a -3 -- tickoff
 tim fix
 #O All correct.
 tim totals
@@ -146,9 +146,9 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
-#O 2013-02-01 12:00 a.c.d -1 # tickoff
-#O 2013-02-01 13:00 a.c -1 # tickoff
-#O 2013-02-01 14:00 a.b -2 # tickoff
+#O 2013-02-01 12:00 a.c.d -1 -- tickoff
+#O 2013-02-01 13:00 a.c -1 -- tickoff
+#O 2013-02-01 14:00 a.b -2 -- tickoff
 #O Sum of above timings:
 #O   2 a
 #O     1 b
@@ -158,7 +158,7 @@ tim log year 2013
 #O  ==
 #O  +2
 tim tickoff --undo
-#O Tickoff undone: 2013-02-01 14:00 a.b -2 # tickoff
+#O Tickoff undone: 2013-02-01 14:00 a.b -2 -- tickoff
 tim fix
 #O All correct.
 tim totals
@@ -176,8 +176,8 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
-#O 2013-02-01 12:00 a.c.d -1 # tickoff
-#O 2013-02-01 13:00 a.c -1 # tickoff
+#O 2013-02-01 12:00 a.c.d -1 -- tickoff
+#O 2013-02-01 13:00 a.c -1 -- tickoff
 #O Sum of above timings:
 #O   4 a
 #O     3 b
@@ -187,7 +187,7 @@ tim log year 2013
 #O  ==
 #O  +4
 tim tickoff --undo
-#O Tickoff undone: 2013-02-01 13:00 a.c -1 # tickoff
+#O Tickoff undone: 2013-02-01 13:00 a.c -1 -- tickoff
 tim fix
 #O All correct.
 tim totals
@@ -204,7 +204,7 @@ tim log year 2013
 #O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
-#O 2013-02-01 12:00 a.c.d -1 # tickoff
+#O 2013-02-01 12:00 a.c.d -1 -- tickoff
 #O Sum of above timings:
 #O   5 a
 #O     3 b
@@ -213,7 +213,7 @@ tim log year 2013
 #O  ==
 #O  +5
 tim tickoff --undo
-#O Tickoff undone: 2013-02-01 12:00 a.c.d -1 # tickoff
+#O Tickoff undone: 2013-02-01 12:00 a.c.d -1 -- tickoff
 tim fix
 #O All correct.
 tim totals

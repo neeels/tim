@@ -788,6 +788,8 @@ def gently_kill_process(pid):
 # strings and regexes ########################################################
 
 INITIAL_TOTAL_KEYWORD = 'init:'
+COMMENT_SEPARATOR = '--'
+COMMENT_ADDITION_SEPARATOR = ' -- '
 NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*'
 NAMES_RE = '(' + NAME_RE + ')(,' + NAME_RE + ')*'
 NAME_STR_RE = '\A' + NAME_RE + '\Z'
@@ -797,7 +799,8 @@ DATE_RE = r'(\d{1,4})-(\d{1,2})-(\d{1,2})[_ ](\d{1,2})[-:](\d{1,2})'
 TOTAL_RE = '(' + NAME_RE + ')=(' + TIME_RE + ')'
 TOTALS_LINE_RE = '^' + TOTAL_RE + '$'
 LOG_INITIAL_TOTAL_RE = '^' + INITIAL_TOTAL_KEYWORD + ' *(.*) *$'
-TIMING_RE = '^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE + ')($| *# {0,1}(.*)$)'
+TIMING_RE = ('^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE
+             + ')($| *(#|' + COMMENT_SEPARATOR + ') {0,1}(.*)$)')
 STATE_RE = '^([0-9]+) (.*)$' # a PID, and a log entry (parsed in second step)
 
 name_syntax_docstr = (
@@ -824,7 +827,7 @@ class Regex:
 
 def join_comments(c1, c2):
   if c1 and c2:
-    return '%s | %s' % (c1, c2)
+    return '%s%s%s' % (c1, COMMENT_ADDITION_SEPARATOR, c2)
   if c1:
     return c1
   if c2:
@@ -954,7 +957,7 @@ class Timing:
             self.name or 'unnamed',
             minutes2str(minutes or 0)]
     if self.comment:
-      elts.append('#')
+      elts.append(COMMENT_SEPARATOR)
       elts.append(self.comment)
     return ' '.join(elts)
 
@@ -973,7 +976,7 @@ class Timing:
                     started=str2time('%s-%s-%s %s:%s' % match.groups()[0:5]),
                     name=match.group(6),
                     minutes=str2minutes(match.group(7)),
-                    comment=match.group(9),
+                    comment=match.group(10),
                    )
       return self
 
@@ -3699,7 +3702,8 @@ class TimCmdline:
         # convenience: omit 'adjust' for +-@= time adjustments
         if args[0][0] in '@+-=':
           return self.cmd_adjust(*args)
-        if len(args) == 1 or ('--' in args and args.index('--') == 1):
+        if len(args) == 1 or (
+             COMMENT_SEPARATOR in args and args.index(COMMENT_SEPARATOR) == 1):
           # convenience: omit 'start' for known project names
           return self.cmd_start(*args)
         _raise("Unknown command: '", cmd, "'", help_hint)
@@ -3766,8 +3770,8 @@ class TimCmdline:
 
   def strip_comment(self, args):
     comment = None
-    if '--' in args:
-      split_point = args.index('--')
+    if COMMENT_SEPARATOR in args:
+      split_point = args.index(COMMENT_SEPARATOR)
       if split_point < (len(args) - 1):
         comment = ' '.join(args[split_point+1:])
       args = args[:split_point]
