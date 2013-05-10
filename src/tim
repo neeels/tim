@@ -822,6 +822,16 @@ class Regex:
     return Regex.compiled(regex).match(string)
     
 
+def join_comments(c1, c2):
+  if c1 and c2:
+    return '%s | %s' % (c1, c2)
+  if c1:
+    return c1
+  if c2:
+    return c2
+  return None
+
+
 # classes implementing Tim ###################################################
 
 class Notify(object):
@@ -971,7 +981,7 @@ class Timing:
     'Append to current comment. Return True iff self.comment changed.'
     if comment:
       was = self.comment
-      self.comment = (self.comment or '') + comment
+      self.comment = join_comments(self.comment, comment)
       if was != self.comment:
         return True
     return False
@@ -2843,11 +2853,7 @@ class Tim(Notify):
       t = stopped_state.timing
       if t.started:
         
-        if comment:
-          if t.comment:
-            t.comment = ' '.join((t.comment, comment))
-          else:
-            t.comment = comment
+        t.comment = join_comments(t.comment, comment)
         
         if stop_time:
           new_minutes = int((stop_time - t.started) / 60)
@@ -3693,7 +3699,7 @@ class TimCmdline:
         # convenience: omit 'adjust' for +-@= time adjustments
         if args[0][0] in '@+-=':
           return self.cmd_adjust(*args)
-        if len(args) == 1:
+        if len(args) == 1 or ('--' in args and args.index('--') == 1):
           # convenience: omit 'start' for known project names
           return self.cmd_start(*args)
         _raise("Unknown command: '", cmd, "'", help_hint)
