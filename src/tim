@@ -3216,6 +3216,16 @@ def systray_namespace(*args):
     return builder
 
 
+  def name2col(name):
+    l = len(name)
+    rgbs = (name[:l/3], name[l/3:l*2/3], name[l*2/3:])
+    print rgbs
+    col = '#' + ''.join([
+        '%02x'%(80 + (sum([ord(c) for c in s])) % 80)
+        for s in rgbs])
+    print col
+    return col
+
   class TimSystray:
 
     def __init__(self, base_dir=None):
@@ -3277,6 +3287,7 @@ def systray_namespace(*args):
       self.xzoom = 1.
       self.yzoom = 1.
       self.end_time = date_end_of(UNIT_DAY, now()) - 1
+      print 'end time', time2str(self.end_time)
 
       self.toggle_window() # DEBUG -- open window on startup
 
@@ -3284,10 +3295,12 @@ def systray_namespace(*args):
     def on_timelog_area_expose(self, area, event):
       if not self.colormap:
         self.colormap = self.timelog_area.window.get_colormap()
-        self.col_even = self.colormap.alloc_color('#f8f8f8')
-        self.col_odd = self.colormap.alloc_color('#ffffff')
-        self.col_we = self.colormap.alloc_color('#eeeeee')
+        self.col_even = self.colormap.alloc_color('#f0f0f0')
+        self.col_odd = self.colormap.alloc_color('#f8f8f8')
+        self.col_we = self.colormap.alloc_color('#e8e8e8')
         self.col_vline = self.colormap.alloc_color('#ffffff')
+        self.col_bar = self.colormap.alloc_color('#228822')
+        self.col_noon = self.colormap.alloc_color('#dfdfdf')
       style = self.timelog_area.get_style()
       gc = style.fg_gc[gtk.STATE_NORMAL]
       drawable = self.timelog_area.window
@@ -3297,9 +3310,9 @@ def systray_namespace(*args):
       DAY_HEIGHT = 30
       HOUR_WIDTH = w / 24
                      
-      print time2str(self.end_time)
+      print 'end time', time2str(self.end_time)
       beginning_of_last_day = date_beginning_of(UNIT_DAY, self.end_time)
-      print time2str(beginning_of_last_day)
+      print 'beginning of end', time2str(beginning_of_last_day)
 
       days_shown = int(math.ceil( float(h) / DAY_HEIGHT ))
       if days_shown < 1:
@@ -3319,6 +3332,7 @@ def systray_namespace(*args):
       odd_line = drawable.new_gc(foreground=self.col_odd)
       we_line = drawable.new_gc(foreground=self.col_we)
       vline = drawable.new_gc(foreground=self.col_vline)
+      noon = drawable.new_gc(foreground=self.col_noon)
       for day in range(days_shown):
         xpos = 0
         ypos = int(h - (day + 1) * DAY_HEIGHT)
@@ -3332,13 +3346,47 @@ def systray_namespace(*args):
         else:
           gc_used = even_line
         drawable.draw_rectangle(gc_used, True, xpos, ypos + 1, w, DAY_HEIGHT - 1)
+        if dom != 1:
+          drawable.draw_line(vline, xpos, ypos, w, ypos)
         for hour in range(1,24):
           xx = xpos + (hour * w / 24)
-          drawable.draw_line(vline, xx, ypos, xx, ypos + DAY_HEIGHT - 1)
+          if hour == 12:
+            drawable.draw_rectangle(noon, True, xx - 1, ypos, 3, DAY_HEIGHT)
+          else:
+            drawable.draw_line(vline, xx, ypos + 1, xx, ypos + DAY_HEIGHT - 1)
         if dom == 1:
           drawable.draw_line(gc, xpos, ypos, w, ypos)
-        else:
-          drawable.draw_line(vline, xpos, ypos, w, ypos)
+
+      for timing in result.timings:
+        t = '%s+%s' % (
+                       time2str(timing.started, TIME_OF_DAY_FORMAT),
+                       minutes2str(timing.minutes),
+                          )
+        #t = minutes2str(timing.minutes)
+        barw = int((float(timing.minutes) / 60) * w / 24)
+        xpos = time2hourofday(timing.started) * w / 24
+        day = float(abs( date_beginning_of(UNIT_DAY, timing.started)
+                         - beginning_of_last_day
+                   )) / (24.*60*60)
+        ypos = h - (day + 1) * DAY_HEIGHT
+        #self.timelog_pango.set_text(t)
+        #pw, ph = self.timelog_pango.get_pixel_size()
+        #ypos += (DAY_HEIGHT - ph) / 2
+        #drawable.draw_layout(gc, int(xpos), int(ypos), self.timelog_pango)
+        barh = int(DAY_HEIGHT / 2)
+        ypos += (DAY_HEIGHT - barh) / 2
+
+        self.col_bar = self.colormap.alloc_color(name2col(timing.name))
+        bar_gc = drawable.new_gc(foreground=self.col_bar)
+        drawable.draw_rectangle(bar_gc, True, int(xpos), int(ypos), barw, barh)
+
+      for day in range(days_shown):
+        xpos = 0
+        ypos = int(h - (day + 1) * DAY_HEIGHT)
+        day_time = date_subtract(day, UNIT_DAY, beginning_of_last_day)
+        dow = time2weekday(day_time)
+        dom = time2dayofmonth(day_time)
+
         if ((ypos >= 0 and ypos <= DAY_HEIGHT)
             or (dom == 1)):
           t = time2date(day_time)
@@ -3351,22 +3399,6 @@ def systray_namespace(*args):
         pw, ph = self.pango_day.get_pixel_size()
         ypos += (DAY_HEIGHT - ph) / 2
         drawable.draw_layout(gc, xpos, ypos, self.pango_day)
-
-      for timing in result.timings:
-        t = '%s+%s' % (
-                       time2str(timing.started, TIME_OF_DAY_FORMAT),
-                       minutes2str(timing.minutes),
-                          )
-        #t = minutes2str(timing.minutes)
-        xpos = time2hourofday(timing.started) * w / 24
-        day = float(abs( date_beginning_of(UNIT_DAY, timing.started)
-                         - beginning_of_last_day
-                   )) / (24.*60*60)
-        ypos = h - (day + 1) * DAY_HEIGHT
-        self.timelog_pango.set_text(t)
-        pw, ph = self.timelog_pango.get_pixel_size()
-        ypos += (DAY_HEIGHT - ph) / 2
-        drawable.draw_layout(gc, int(xpos), int(ypos), self.timelog_pango)
 
       return True
 
