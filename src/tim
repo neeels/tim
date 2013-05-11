@@ -3226,6 +3226,65 @@ def systray_namespace(*args):
     print col
     return col
 
+
+  class ColorSpace:
+
+    def __init__(self, minvals=0, maxvals=255):
+      self.n = 0
+
+      self.m = 2
+      self.colors = {}
+      if type(minvals) is list:
+        assert(len(minvals) == 3)
+        self.minvals = minvals
+      else:
+        self.minvals = (minvals, minvals, minvals)
+      if type(maxvals) is list:
+        assert(len(maxvals) == 3)
+        self.maxvals = maxvals
+      else:
+        self.maxvals = (maxvals, maxvals, maxvals)
+
+
+    def get_color(self, name):
+      c = self.colors.get(name)
+      if c is None:
+        c = self.next_color()
+        self.colors[name] = c
+      return c
+
+
+    def get_color_str(self, name):
+      rgbs = self.get_color(name)
+      print rgbs
+      col = '#' + ''.join(['%02x'%c for c in rgbs])
+      return col
+
+
+    def next_color(self):
+      self.n += 1
+      if self.n >= self.m:
+        self.m *= 2
+        self.n = 1
+      point = float(self.n) / self.m
+      print point
+      return self.color_at(point)
+
+
+    def color_at(self, point):
+      colors = int(point * 0xffffff)
+      rgb = [ 
+              (colors >> 16)%256,
+              (colors >> 8)%256,
+              (colors)%256,
+            ]
+      for i in range(3):
+        rgb[i] = self.minvals[i] + (
+                   (self.maxvals[i] - self.minvals[i])* rgb[i] / 255 )
+      return rgb
+
+
+
   class TimSystray:
 
     def __init__(self, base_dir=None):
@@ -3237,6 +3296,8 @@ def systray_namespace(*args):
       self.icon_path = j(self.tim.base_dir, 'state.svg')
       self.prev_state = None
       self.timer_button_autotoggling = 0
+
+      self.color_space = ColorSpace(256/3, 256*2/3)
 
       # load dialog window
       window_builder = get_gtk('tim.glade')
@@ -3376,7 +3437,8 @@ def systray_namespace(*args):
         barh = int(DAY_HEIGHT / 2)
         ypos += (DAY_HEIGHT - barh) / 2
 
-        self.col_bar = self.colormap.alloc_color(name2col(timing.name))
+        self.col_bar = self.colormap.alloc_color(
+            self.color_space.get_color_str(timing.name))
         bar_gc = drawable.new_gc(foreground=self.col_bar)
         drawable.draw_rectangle(bar_gc, True, int(xpos), int(ypos), barw, barh)
 
@@ -3400,6 +3462,12 @@ def systray_namespace(*args):
         ypos += (DAY_HEIGHT - ph) / 2
         drawable.draw_layout(gc, xpos, ypos, self.pango_day)
 
+      for yy in range(0, h, 20):
+        for xx in range(0, w, 20):
+          self.col_bar = self.colormap.alloc_color(
+              self.color_space.get_color_str((xx,yy)))
+          bar_gc = drawable.new_gc(foreground=self.col_bar)
+          drawable.draw_rectangle(bar_gc, True, int(xx), int(yy), 10, 10)
       return True
 
     def notify(self, key, arg):
