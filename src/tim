@@ -3216,74 +3216,45 @@ def systray_namespace(*args):
     return builder
 
 
-  def name2col(name):
-    l = len(name)
-    rgbs = (name[:l/3], name[l/3:l*2/3], name[l*2/3:])
-    print rgbs
-    col = '#' + ''.join([
-        '%02x'%(80 + (sum([ord(c) for c in s])) % 80)
-        for s in rgbs])
-    print col
-    return col
-
-
   class ColorSpace:
+    COLORS = (
+        '#ffb300',
+        '#803e75',
+        '#ff6800',
+        '#a6bdd7',
+        '#c10020',
+        '#cea262',
+        '#817066',
+        '#007d34',
+        '#f6768e',
+        '#00538a',
+        '#ff7a5c',
+        '#53377a',
+        '#ff8e00',
+        '#b32851',
+        '#f4c800',
+        '#7f180d',
+        '#93aa00',
+        '#593315',
+        '#f13a13',
+        '#232c16',
+       )
 
-    def __init__(self, minvals=0, maxvals=255):
+    def __init__(self):
       self.n = 0
-
-      self.m = 2
-      self.colors = {}
-      if type(minvals) is list:
-        assert(len(minvals) == 3)
-        self.minvals = minvals
-      else:
-        self.minvals = (minvals, minvals, minvals)
-      if type(maxvals) is list:
-        assert(len(maxvals) == 3)
-        self.maxvals = maxvals
-      else:
-        self.maxvals = (maxvals, maxvals, maxvals)
-
-
-    def get_color(self, name):
-      c = self.colors.get(name)
-      if c is None:
-        c = self.next_color()
-        self.colors[name] = c
-      return c
-
+      self.have_colors = {}
 
     def get_color_str(self, name):
-      rgbs = self.get_color(name)
-      print rgbs
-      col = '#' + ''.join(['%02x'%c for c in rgbs])
-      return col
-
+      c = self.have_colors.get(name)
+      if c is None:
+        c = self.next_color()
+        self.have_colors[name] = c
+      return c
 
     def next_color(self):
-      self.n += 1
-      if self.n >= self.m:
-        self.m *= 2
-        self.n = 1
-      point = float(self.n) / self.m
-      print point
-      return self.color_at(point)
-
-
-    def color_at(self, point):
-      colors = int(point * 0xffffff)
-      rgb = [ 
-              (colors >> 16)%256,
-              (colors >> 8)%256,
-              (colors)%256,
-            ]
-      for i in range(3):
-        rgb[i] = self.minvals[i] + (
-                   (self.maxvals[i] - self.minvals[i])* rgb[i] / 255 )
-      return rgb
-
-
+      c = ColorSpace.COLORS[self.n]
+      self.n = (self.n + 1) % len(ColorSpace.COLORS)
+      return c
 
   class TimSystray:
 
@@ -3297,7 +3268,7 @@ def systray_namespace(*args):
       self.prev_state = None
       self.timer_button_autotoggling = 0
 
-      self.color_space = ColorSpace(256/3, 256*2/3)
+      self.color_space = ColorSpace()
 
       # load dialog window
       window_builder = get_gtk('tim.glade')
@@ -3348,7 +3319,6 @@ def systray_namespace(*args):
       self.xzoom = 1.
       self.yzoom = 1.
       self.end_time = date_end_of(UNIT_DAY, now()) - 1
-      print 'end time', time2str(self.end_time)
 
       self.toggle_window() # DEBUG -- open window on startup
 
@@ -3371,14 +3341,11 @@ def systray_namespace(*args):
       DAY_HEIGHT = 30
       HOUR_WIDTH = w / 24
                      
-      print 'end time', time2str(self.end_time)
       beginning_of_last_day = date_beginning_of(UNIT_DAY, self.end_time)
-      print 'beginning of end', time2str(beginning_of_last_day)
 
       days_shown = int(math.ceil( float(h) / DAY_HEIGHT ))
       if days_shown < 1:
         days_shown = 1
-      print h, DAY_HEIGHT, days_shown
       start_time = date_subtract(days_shown - 1, UNIT_DAY, beginning_of_last_day)
 
       log_query = Timelog.Query(unit=UNIT_DAY,
@@ -3387,7 +3354,6 @@ def systray_namespace(*args):
                                 snap_to_calendar=False)
 
       result = self.tim.timelog.run_query(log_query)
-      print result.description_str()
 
       even_line = drawable.new_gc(foreground=self.col_even)
       odd_line = drawable.new_gc(foreground=self.col_odd)
@@ -3462,12 +3428,6 @@ def systray_namespace(*args):
         ypos += (DAY_HEIGHT - ph) / 2
         drawable.draw_layout(gc, xpos, ypos, self.pango_day)
 
-      for yy in range(0, h, 20):
-        for xx in range(0, w, 20):
-          self.col_bar = self.colormap.alloc_color(
-              self.color_space.get_color_str((xx,yy)))
-          bar_gc = drawable.new_gc(foreground=self.col_bar)
-          drawable.draw_rectangle(bar_gc, True, int(xx), int(yy), 10, 10)
       return True
 
     def notify(self, key, arg):
