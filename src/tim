@@ -1530,6 +1530,7 @@ class Totals:
   def get_grand_total_minutes(self):
     return sum([minutes for minutes in self.entries.values()])
 
+
 def diff_totals(t_is, t_shouldbe):
   diff = []
   for name, minutes in sorted(t_is.iteritems()):
@@ -3379,34 +3380,53 @@ def systray_namespace(*args):
           xx = xpos + (hour * w / 24)
           if hour == 12:
             drawable.draw_rectangle(noon, True, xx - 1, ypos, 3, DAY_HEIGHT)
+          elif hour == 6:
+            drawable.draw_line(noon, xx, ypos + 1, xx, ypos + DAY_HEIGHT - 1)
+          elif hour == 18:
+            drawable.draw_line(noon, xx, ypos + 1, xx, ypos + DAY_HEIGHT - 1)
           else:
             drawable.draw_line(vline, xx, ypos + 1, xx, ypos + DAY_HEIGHT - 1)
         if dom == 1:
           drawable.draw_line(gc, xpos, ypos, w, ypos)
 
-      for timing in result.timings:
-        t = '%s+%s' % (
-                       time2str(timing.started, TIME_OF_DAY_FORMAT),
-                       minutes2str(timing.minutes),
-                          )
-        #t = minutes2str(timing.minutes)
-        barw = int((float(timing.minutes) / 60) * w / 24)
-        xpos = time2hourofday(timing.started) * w / 24
-        day = float(abs( date_beginning_of(UNIT_DAY, timing.started)
+      bar_gc = drawable.new_gc()
+
+      def draw_bar(name, color, start_time, minutes):
+        xpos = time2hourofday(start_time) * w / 24
+        barw = min(w, int((float(minutes) / 60) * w / 24))
+          
+        print barw
+        day = float(abs( date_beginning_of(UNIT_DAY, start_time)
                          - beginning_of_last_day
                    )) / (24.*60*60)
         ypos = h - (day + 1) * DAY_HEIGHT
-        #self.timelog_pango.set_text(t)
-        #pw, ph = self.timelog_pango.get_pixel_size()
-        #ypos += (DAY_HEIGHT - ph) / 2
-        #drawable.draw_layout(gc, int(xpos), int(ypos), self.timelog_pango)
         barh = int(DAY_HEIGHT / 2)
         ypos += (DAY_HEIGHT - barh) / 2
 
-        self.col_bar = self.colormap.alloc_color(
-            self.color_space.get_color_str(timing.name))
-        bar_gc = drawable.new_gc(foreground=self.col_bar)
-        drawable.draw_rectangle(bar_gc, True, int(xpos), int(ypos), barw, barh)
+        self.col_bar = self.colormap.alloc_color(color)
+        bar_gc.set_foreground(self.col_bar)
+        if barw < 0:
+          xpos -= barh/2
+          drawable.draw_arc(bar_gc, True, int(xpos), int(ypos), barh, barh,
+                            0, 360*64)
+        else:
+          drawable.draw_rectangle(bar_gc, True, int(xpos), int(ypos), barw, barh)
+
+          day_end = date_end_of(UNIT_DAY, start_time)
+          timing_end = start_time + 60*minutes
+
+          if name:
+            self.timelog_pango.set_text(name.split('.')[-1])
+            drawable.draw_layout(gc, int(xpos)+1, int(ypos), self.timelog_pango)
+            
+          if timing_end > day_end:
+            draw_bar(None, color, day_end, (timing_end - day_end) / 60)
+        
+
+      for timing in result.timings:
+        print str(timing)
+        draw_bar(timing.name, self.color_space.get_color_str(timing.name),
+                 timing.started, timing.minutes )
 
       for day in range(days_shown):
         xpos = 0
