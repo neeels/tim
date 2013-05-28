@@ -385,13 +385,13 @@ parent group is useful when no precise per-project tickoffs are needed. When
 you run 'tim totals', your parent group's tickoffs neutralize the hours added
 up from the subprojects, so by ticking off you ideally reach zero on the
 parent group.
-  tim tickoff 6 yoyodyne
-  tim tickoff 30:30 upperstarter.foo
-  tim tickoff 1:30 upperstarter.bar
 
-If a group's total is negative, you've already ticked off more hours than you
-have recorded; in other words, you've billed hours in advance. Over time, as
-you record more timings, the negative value will approach positive numbers.
+  tim tickoff yoyodyne 6
+  tim tickoff upperstarter.foo 8:30
+  tim tickoff upperstarter.bar 1.5
+
+In 'tim totals', if a group's total is negative, you've already ticked off more
+hours than you have recorded; in other words, you've billed hours in advance.
 
 You can undo the latest tickoffs one by one with:
   tim tickoff --undo
