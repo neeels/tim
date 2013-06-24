@@ -1,0 +1,94 @@
+WARP TO 2013-05-10 01:47
+-tim new x
+
+tim start x --first comment
+#E *** Unknown arguments: '--first comment'
+#E Note: to add a comment, there has to be a space after '--'
+
+tim start -- first comment
+#E *** 'start' takes a name argument.
+#E ...
+
+tim start x -- first comment
+#O started x
+tim =1
+#O Running: x=1 (since 2013-05-10 00:47)
+tim stop
+#O stopped x (1)
+
+WARP TO 2013-05-10 3
+tim x -- second comment
+#O started x
+tim =1
+#O Running: x=1 (since 2013-05-10 02:00)
+tim stop
+#O stopped x (1)
+
+WARP TO 2013-05-10 12
+tim started x 5 -- third comment
+#O started x
+tim stopped 6
+#O stopped x (1)
+
+tim started x 7
+#O started x
+tim stopped 8 -- fourth comment
+#O stopped x (1)
+
+tim started x 9
+#O started x
+tim stop -- sixth comment
+#O stopped x (3)
+
+tim forge 2013-05-10 8 x 1 -- fifth comment
+#O forged 2013-05-10 08:00 x 1 -- fifth comment
+#O *** remember to call 'tim fix 2013' at some point.
+
+tim tickoff x 10 -- seventh comment
+#O ticked off: 2013-05-10 12:00 x -10 -- seventh comment
+tim tickoff x 2.2 2013-05-10 -- eightth comment
+#O ticked off: 2013-05-10 23:59 x -2:12 -- eightth comment
+
+-tim fix
+
+tim log year
+#O 1 years, ending now, showing entire years.
+#O Tuesday 2013-01-01 00:00 ... Tuesday 2013-12-31 23:59:
+#O 2013-05-10 00:47 x 1 -- first comment
+#O 2013-05-10 02:00 x 1 -- second comment
+#O 2013-05-10 05:00 x 1 -- third comment
+#O 2013-05-10 07:00 x 1 -- fourth comment
+#O 2013-05-10 08:00 x 1 -- fifth comment
+#O 2013-05-10 09:00 x 3 -- sixth comment
+#O 2013-05-10 12:00 x -10 -- seventh comment
+#O 2013-05-10 23:59 x -2:12 -- eightth comment
+#O Sum of above timings:
+#O  -4:12 x
+#O  =====
+#O  -4:12
+
+
+WARP TO 2013-05-11 12
+
+tim started x 9 -- first part
+#O started x
+tim stopped 10 -- last part
+#O stopped x (1)
+
+tim start x -- first part
+#O started x
+tim =2
+#O Running: x=2 (since 2013-05-11 10:00)
+tim stop -- last part
+#O stopped x (2)
+
+tim log 1 day
+#O 1 days, ending now, showing entire days.
+#O Saturday 2013-05-11 00:00 ... Saturday 2013-05-11 23:59:
+#O 2013-05-11 09:00 x 1 -- first part -- last part
+#O 2013-05-11 10:00 x 2 -- first part -- last part
+#O Sum of above timings:
+#O   3 x
+#O  ==
+#O  +3
+

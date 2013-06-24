@@ -44,7 +44,7 @@ Command line usage:
   tim new <project-name> [<project-name> [...]]
   tim [start] <project-name> [-- <comment>]
   tim started <project-name> <time-of-day> [-- <comment>]
-  tim [adjust] [@<started-time>|+<duration>|-<duration>|=<duration>]
+  tim [adjust] @<started-time>|+<duration>|-<duration>|=<duration>|-- <comment>
   tim stop [-- <comment>]
   tim stopped [-]<HH:MM> [-- <comment>]
   tim totals [round <duration>] [only <name>[.*][,...]] [-f] [-s]
@@ -54,11 +54,11 @@ Command line usage:
           [round <duration>] [only <name>[.*][,...]] [-f]
   tim fix [<start-year>] [--clear] [--overlaps=shift|drop|ignore]
   tim tickoff <name> <hours> [<date> [<time>]] [-- <comment>]
-  tim tickoff --undo
+  tim tickoff undo
   tim forge [new] <start-date> <start-time> <name> <hours> [-- <comment>]
   tim rename <name> <new-name>
   tim forget <name>
-  tim recall [<id>] [--as <name>] [--add-to <name>]
+  tim recall [<id>] [[add] as <name>]
 
 --- tim systray ---
 Launch a systray icon. Tim should appear in your window manager's taskbar. Put
@@ -104,13 +104,12 @@ Tim will find 'my_group.my_name' from that, as long as there is no other
 'my_name' around in other groups.
 
 You can supply a comment to go with the timing being started. If you do so,
-just write the comment after the name to start. You may not omit the word
-'start' when supplying a comment.
-  tim start my_name My comment goes everywhere after the name.
+just write '--' followed by the comment after the name to start.
+  tim start my_name -- My comment goes everywhere after the double dash.
 
 The comment will be saved in the log, and it may be used to submit the timing
 elsewhere. For example, the OpenGroupware export submits the comment to your
-OpenGroupware server.
+OpenGroupware timesheet.
 
 A running timer can be stopped with 'tim stop', 'tim stopped' or by starting a
 different name. A running timer can also be adjusted, see 'tim help adjust'.
@@ -394,7 +393,7 @@ In 'tim totals', if a group's total is negative, you've already ticked off more
 hours than you have recorded; in other words, you've billed hours in advance.
 
 You can undo the latest tickoffs one by one with:
-  tim tickoff --undo
+  tim tickoff undo
 
 --- tim forge ---
 Create a timing some time in the past. This is the same as editing the logs in
@@ -424,7 +423,7 @@ Remove a given project from accounting. The data will still be sitting in the
 database, but it will appear to be completely removed with all its history
 when interacting with tim.
 
---- tim remember ---
+--- tim recall ---
 Recover a project previously forgotten with 'tim forget'. Run without
 arguments to get a listing of IDs for forgotten projects or groups.
 
@@ -2444,6 +2443,8 @@ class Timelog(Notify):
       return self.date_arg(do_raise=True)
 
     def date_arg(self, do_raise=False):
+      if 'now' == self.token:
+        return now()
       try:
         return self.parse_date_str(self.token)
       except Error:
@@ -3880,6 +3881,11 @@ class TimCmdline:
     if not name:
       _raise("Unknown name: '", args[0], "' -- ",
              "try 'tim new ", args[0], "' first?", help_hint)
+    if len(args) > 1:
+      comment_msg = ''
+      if args[1].startswith('--'):
+        comment_msg = "\nNote: to add a comment, there has to be a space after '--'"
+      _raise("Unknown arguments: '", ' '.join(args[1:]), "'", comment_msg)
     self.tim.start(name, comment)
 
 
@@ -4114,14 +4120,12 @@ class TimCmdline:
   def cmd_tickoff(self, *args):
     args, comment = self.strip_comment(args)
 
-    if '--undo' in args:
-      if len(args) != 1 or comment:
-        _raise('--undo cannot be combined with other arguments.')
+    if len(args) == 1 and args[0] == 'undo':
       t = self.tim.undo_last_tickoff()
       if t:
         _msg('Tickoff undone: ', repr(t))
       else:
-        _warn('No tickoff found.')
+        _warn('No tickoff found to undo.')
       return
 
     name = None
@@ -4137,13 +4141,17 @@ class TimCmdline:
     if not name:
       _raise('I need a name argument.')
 
-    if not minutes: # catch both None and zero
-      _raise('I need a nonzero time argument (like 1:23 for one hour 23 minutes).')
-
     full_name = self.tim.find_full_name(name)
     if not full_name:
-      _raise("Unknown name: '", name, "' -- ",
-             "try 'tim new ", name, "' first?", help_hint)
+      if 'undo' in args:
+        msgstr = "'undo' cannot be combined with other arguments"
+      else:
+        msgstr = msgs2str("Unknown name: '", name, "'",
+                          "-- try 'tim new ", name, "' first?", help_hint)
+      _raise(msgstr)
+
+    if not minutes: # catch both None and zero
+      _raise('I need a nonzero time argument (like 1:23 for one hour 23 minutes).')
 
     if len(args) > 2:
       date_str = args[2]

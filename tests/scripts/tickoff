@@ -1,5 +1,8 @@
 -tim new a.b a.c a.c.d e
 
+tim tickoff undo
+#O *** No tickoff found to undo.
+
 WARP TO 2013-01-01
 tim tickoff a 10
 #O ticked off: 2013-01-01 00:00 a -10 -- tickoff
@@ -60,7 +63,7 @@ tim totals -f
 #O     =====
 #O     -4    
 
-tim tickoff --undo
+tim tickoff undo
 #O Tickoff undone: 2013-01-01 00:00 a -10 -- tickoff
 tim totals
 #O Totals:
@@ -127,7 +130,7 @@ tim log year 2013
 #O         2 d
 #O  ==
 #O  -1
-tim tickoff --undo
+tim tickoff undo
 #O Tickoff undone: 2013-02-01 15:00 a -3 -- tickoff
 tim fix
 #O All correct.
@@ -157,7 +160,7 @@ tim log year 2013
 #O        2 d
 #O  ==
 #O  +2
-tim tickoff --undo
+tim tickoff undo
 #O Tickoff undone: 2013-02-01 14:00 a.b -2 -- tickoff
 tim fix
 #O All correct.
@@ -186,7 +189,7 @@ tim log year 2013
 #O        2 d
 #O  ==
 #O  +4
-tim tickoff --undo
+tim tickoff undo
 #O Tickoff undone: 2013-02-01 13:00 a.c -1 -- tickoff
 tim fix
 #O All correct.
@@ -212,7 +215,7 @@ tim log year 2013
 #O       2 d
 #O  ==
 #O  +5
-tim tickoff --undo
+tim tickoff undo
 #O Tickoff undone: 2013-02-01 12:00 a.c.d -1 -- tickoff
 tim fix
 #O All correct.
@@ -237,3 +240,12 @@ tim log year 2013
 #O       3 d
 #O  ==
 #O  +6
+
+tim tickoff a 1
+#O ticked off: 2013-02-01 15:00 a -1 -- tickoff
+tim tickoff undo 1
+#E *** 'undo' cannot be combined with other arguments
+tim tickoff undo a 1
+#E *** 'undo' cannot be combined with other arguments
+tim tickoff undo
+#O Tickoff undone: 2013-02-01 15:00 a -1 -- tickoff
