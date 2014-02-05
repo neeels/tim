@@ -198,6 +198,12 @@ specific projects. The timings for 'yoyo' become negative. But in the totals,
 'foo' and 'bar' are added to its parent 'yoyo', so that 'yoyo' reaches zero
 when all worked hours have been ticked off.
 
+Note that 'totals' will also include timings you may have forged into the
+future, but only to the end of the current year. Say you added all planned
+tick-offs for the year in advance, 'totals' will show a large negative number.
+If you would like to exclude future timings, rather use 'log', e.g.
+'tim log 3 weeks until now' or 'tim log days from 2014 until now'.
+
 Options:
 
   only <name>[,<name>[,...]]
@@ -508,8 +514,8 @@ def _debug(*msgs):
 def handle_error(e):
   _errmsg(str(e))
   ### debug output:
-  sys.stderr.write('----- stacktrace -----\n')
-  sys.stderr.write(traceback.format_exc())
+  #sys.stderr.write('----- stacktrace -----\n')
+  #sys.stderr.write(traceback.format_exc())
 
 # generic conversion functions ###############################################
 
@@ -620,10 +626,13 @@ def time2hourofday(float_time):
   l = time.localtime(float_time)
   return float(l.tm_hour) + float(l.tm_min)/60.
 
+def time2weekday_monday_as_zero(float_time):
+  return int(time.localtime(float_time).tm_wday)
+
 def time2weekday(float_time):
   # time_struct has monday == 0, while strptime() has sunday == 0.
   # convert to sunday == 0.
-  return (int(time.localtime(float_time).tm_wday) + 1) % 7
+  return (time2weekday_monday_as_zero(float_time) + 1) % 7
 
 def time2weekdaystr(float_time, weekday_strings={
     0:'Sunday', 1:'Monday', 2:'Tuesday', 3:'Wednesday', 4:'Thursday',
@@ -642,25 +651,42 @@ UNIT_WEEK = 2
 UNIT_MONTH = 3
 UNIT_YEAR = 4
 
+def date_seconds_per(unit):
+  if UNIT_HOUR == unit:
+    return 60.*60
+  elif UNIT_DAY == unit:
+    return 60.*60*24
+  elif UNIT_WEEK == unit:
+    return 60.*60*24*7
+  elif UNIT_MONTH == unit:
+    return 60.*60*24*(365.25/12)
+  elif UNIT_YEAR == unit:
+    return 60.*60*24*365.25
+
+
 def date_beginning_of(unit, date):
+  # convert date to a string that does not contain anything beyond 'unit',
+  # then convert back to date, thus the remaining bits will be zero.
+  # Weeks are a bit special as they may wrap past year boundaries.
+  if UNIT_WEEK == unit:
+    # Find the start of the current day and subtract days back to monday.
+    # Subtracting nr-of-seconds-per-day could be messy, so rather take noon for
+    # calculations and round down to midnight later.
+    seconds_per_day = date_seconds_per(UNIT_DAY)
+    date = date_beginning_of(UNIT_DAY, date) + (.5 * seconds_per_day)
+    date -= seconds_per_day * time2weekday_monday_as_zero(date)
+    return date_beginning_of(UNIT_DAY, date)
+
   if UNIT_HOUR == unit:
     round_fmt = '%Y %j %H'
   elif UNIT_DAY == unit:
     round_fmt = '%Y %j'
-  elif UNIT_WEEK == unit:
-    round_fmt = '%Y %W'
   elif UNIT_MONTH == unit:
     round_fmt = '%Y %m'
   elif UNIT_YEAR == unit:
     round_fmt = '%Y'
 
   rounded_str = time2str(date, fmt=round_fmt)
-  
-  if UNIT_WEEK == unit:
-    # strptime with %W (week of year) only works with %w (day of week).
-    # So add 'Monday'.
-    round_fmt += ' %w'
-    rounded_str += ' 1'
 
   res = str2time( rounded_str, fmt=round_fmt)
   return res
@@ -690,18 +716,6 @@ def date_add(amount, unit, date):
 
 def date_subtract(amount, unit, date):
   return date_add(-amount, unit, date)
-
-def date_seconds_per(unit):
-  if UNIT_HOUR == unit:
-    return 60.*60
-  elif UNIT_DAY == unit:
-    return 60.*60*24
-  elif UNIT_WEEK == unit:
-    return 60.*60*24*7
-  elif UNIT_MONTH == unit:
-    return 60.*60*24*(365.25/12)
-  elif UNIT_YEAR == unit:
-    return 60.*60*24*365.25
 
 # os file & process functions ################################################
 
@@ -799,7 +813,7 @@ TOTAL_RE = '(' + NAME_RE + ')=(' + TIME_RE + ')'
 TOTALS_LINE_RE = '^' + TOTAL_RE + '$'
 LOG_INITIAL_TOTAL_RE = '^' + INITIAL_TOTAL_KEYWORD + ' *(.*) *$'
 TIMING_RE = ('^' + DATE_RE + '[: ]+([^ ]+) (' + TIME_RE
-             + ')($| *(#|' + COMMENT_SEPARATOR + ') {0,1}(.*)$)')
+             + ')($| *(#|' + COMMENT_SEPARATOR + '){0,1} {0,1}(.*)$)')
 STATE_RE = '^([0-9]+) (.*)$' # a PID, and a log entry (parsed in second step)
 
 name_syntax_docstr = (
@@ -2193,6 +2207,8 @@ class Timelog(Notify):
       if self.unit:
         unit_phrase = Timelog.QueryPhrase.unit_phrase_for(self.unit)
 
+      # When the query did not supply a fixed amount, don't write an amount
+      # phrase. That is the case when amount is None.
       if self.amount and self.unit:
         amount = self.amount
         amount_frac, amount_int = math.modf(amount)
@@ -2443,7 +2459,7 @@ class Timelog(Notify):
       return self.date_arg(do_raise=True)
 
     def date_arg(self, do_raise=False):
-      if 'now' == self.token:
+      if 'now'.startswith(self.token):
         return now()
       try:
         return self.parse_date_str(self.token)
@@ -2604,9 +2620,7 @@ class Timelog(Notify):
        'Any two of start, end or amount must be given, ',
        'while the third must be omitted.')
     
-    if amount is None:
-      amount = 1
-    else:
+    if amount is not None:
       amount = abs(amount)
 
     if snap_to_calendar:
