@@ -14,7 +14,7 @@ Written in Python.
 
 The commandline interface is considered stable.
 
-(c) Copyright 2013 by Neels Janosch Hofmeyr <neels@hofmeyr.de>
+(c) Copyright 2013-2014 by Neels Janosch Hofmeyr <neels@hofmeyr.de>
 
 This file is part of Tim project timer.
 
