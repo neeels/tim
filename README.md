@@ -12,7 +12,7 @@ This git repos was started on 2013-01-10, refactoring an older project called
 
 Written in Python.
 
-There is no stable release yet.
+The commandline interface is considered stable.
 
 (c) Copyright 2013 by Neels Janosch Hofmeyr <neels@hofmeyr.de>
 
