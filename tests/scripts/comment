@@ -12,7 +12,8 @@ tim start -- first comment
 tim start x -- first comment
 #O started x
 tim =1
-#O Running: x=1 (since 2013-05-10 00:47)
+#O x=1 -- first comment
+#O Running since 2013-05-10 00:47
 tim stop
 #O stopped x (1)
 
@@ -20,7 +21,8 @@ WARP TO 2013-05-10 3
 tim x -- second comment
 #O started x
 tim =1
-#O Running: x=1 (since 2013-05-10 02:00)
+#O x=1 -- second comment
+#O Running since 2013-05-10 02:00
 tim stop
 #O stopped x (1)
 
@@ -72,23 +74,45 @@ WARP TO 2013-05-11 12
 
 tim started x 9 -- first part
 #O started x
-tim stopped 10 -- last part
+tim stopped 10 ++ last part
 #O stopped x (1)
 
-tim start x -- first part
+tim start x -- temp first part
 #O started x
-tim =2
-#O Running: x=2 (since 2013-05-11 10:00)
-tim stop -- last part
+tim =2 ++ temp last part
+#O x=2 -- temp first part; temp last part
+#O Running since 2013-05-11 10:00
+tim -- first part
+#O Old comment was:
+#O  -- temp first part; temp last part
+#O 
+#O x=2 -- first part
+#O Running since 2013-05-11 10:00
+tim stop ++ last part
 #O stopped x (2)
+
+WARP TO 2013-05-11 15
+
+tim started x 12 -- temp part
+#O started x
+tim stopped 13 -- replacing part
+#O stopped x (1)
+
+tim started x 13 -- temp part
+#O started x
+tim stop -- replacing part
+#O stopped x (2)
+
 
 tim log 1 day
 #O 1 days, ending now, showing entire days.
 #O Saturday 2013-05-11 00:00 ... Saturday 2013-05-11 23:59:
-#O 2013-05-11 09:00 x 1 -- first part -- last part
-#O 2013-05-11 10:00 x 2 -- first part -- last part
+#O 2013-05-11 09:00 x 1 -- first part; last part
+#O 2013-05-11 10:00 x 2 -- first part; last part
+#O 2013-05-11 12:00 x 1 -- replacing part
+#O 2013-05-11 13:00 x 2 -- replacing part
 #O Sum of above timings:
-#O   3 x
+#O   6 x
 #O  ==
-#O  +3
+#O  +6
 

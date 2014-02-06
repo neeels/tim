@@ -49,6 +49,15 @@ tim log m 2013-01
 #O  =====
 #O  +4:30
 
+tim log d f 2013 u n
+#O starting around 2013-01-01 00:00, ending around 2013-04-27 01:06, showing entire days.
+#O Tuesday 2013-01-01 00:00 ... Saturday 2013-04-27 23:59:
+#O 2013-01-28 12:00 foo 4:30
+#O 2013-04-27 00:06 foo 1
+#O Sum of above timings:
+#O   5:30 foo
+#O  =====
+#O  +5:30
 
 -tim forge 2013-12-30 12:00 foo 1
 -tim fix

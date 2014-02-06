@@ -29,7 +29,8 @@ tim started foo 12
 tim stopped 11
 #E *** Cannot stop before starting time: start = 2013-01-02 12:00; requested stop = 2013-01-02 11:00
 tim
-#O Running: foo=5 (since 2013-01-02 12:00)
+#O foo=5
+#O Running since 2013-01-02 12:00
 tim stopped 12
 #O stopped foo (0)
 tim log 2 d f 2013-01-01
@@ -86,7 +87,8 @@ tim started foo 12:30
 tim stopped -2
 #E *** Cannot stop before starting time: start = 2013-01-03 12:30; requested stop = 2013-01-03 11:00
 tim
-#O Running: foo=0:30 (since 2013-01-03 12:30)
+#O foo=0:30
+#O Running since 2013-01-03 12:30
 tim stopped -0.05
 #O stopped foo (0:27)
 tim log d

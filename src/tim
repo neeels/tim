@@ -44,9 +44,9 @@ Command line usage:
   tim new <project-name> [<project-name> [...]]
   tim [start] <project-name> [-- <comment>]
   tim started <project-name> <time-of-day> [-- <comment>]
-  tim [adjust] @<started-time>|+<duration>|-<duration>|=<duration>|-- <comment>
-  tim stop [-- <comment>]
-  tim stopped [-]<HH:MM> [-- <comment>]
+  tim [adjust] [@<time-of-day>|+<hours>|-<hours>|=<hours>] [--|++ <comment>]
+  tim stop [--|++ <comment>]
+  tim stopped [-]<HH:MM> [--|++ <comment>]
   tim totals [round <duration>] [only <name>[.*][,...]] [-f] [-s]
   tim log [<nr>] [hours|days|weeks|months|years] \
           [from|until|before|after <date>] \
@@ -129,30 +129,36 @@ When a timer is currently running, adjust the recorded time. This always
 shifts the started-time so that the desired duration results when counting up
 to the current moment in time. The word 'adjust' may be omitted.
 
-  @<started-time>
-    I have actually started working on this project at <started-time>.
+  @<time-of-day>
+    I have actually started working on this project at <time-of-day>
     Adjust the timing counter for the current project accordingly.
-    <started-time> format is 'HH:MM', e.g. '14:59'. Wraps past midnight
+    <time-of-day> format is 'HH:MM', e.g. '14:59'. Wraps past midnight
     (yesterday's time is used when today's time would be in the future).
       tim @9      # make as if I called 'start' at 9 o'clock this morning
       tim @15:30  # "just joking, in fact I started at half past three."
 
-  +<duration>
-    Add <duration> to the currently running timer, make as if I started
+  +<hours>
+    Add <hours> to the currently running timer, make as if I started
     earlier.
-    <duration>: [HH][:MM], for example:
+    <hours>: [HH][:MM], for example:
       tim +1      # add one hour
       tim +1:30   # add one and a half hours
       tim +1.5    # add one and a half hours (decimal dot)
       tim +:30    # add thirty minutes
 
-  -<duration>
-    Subtract <duration>. '-10' is the same as '+-10'. Make as if I started
+  -<hours>
+    Subtract <hours>. '-10' is the same as '+-10'. Make as if I started
     later. This won't go below zero.
 
-  =<duration>
-    Set the current counter to exactly <duration> hours.
+  =<hours>
+    Set the current counter to exactly <hours> hours.
       tim =1      # make as if I called 'start' one hour ago
+
+  -- <comment>
+    Replace any current comment with <comment>.
+
+  ++ <comment>
+    Add to the current comment.
 
 To adjust and stop at the same time, see 'tim help stopped'.
 
@@ -162,13 +168,24 @@ YYYY-MM-DD HH:MM my_name hh:mm # my comment
   meaning:
 <start-datetime> <group> <hours> # <comment>
 After you're done editing logs, be sure to call 'tim fix', see 'tim help fix'.
+Keep backups, and using version control is also a neat idea.
 
 --- tim stop ---
-Stop the currently running timer. Any arguments after the word 'stop' are
-stored as a comment for the hours just worked.
+Stop the currently running timer.
 
 When you stop a timer, it is recorded in the log and in the grand totals.
 See 'tim help log' and 'tim help totals'.
+
+Using '--' or '++' sets a comment on the hours just worked. '--' replaces any
+previous comment, while '++' adds to it. For example:
+
+  tim start meetings -- corodination meeting feburary
+  ...
+  tim stop -- coordination meeting February
+or
+  tim start meetings -- coordination meeting February
+  ...
+  tim stop ++ wrote summary
 
 To stop in the past, see 'tim help stopped'.
 
@@ -183,6 +200,8 @@ show that I stopped working at the time I really stopped working.
 If you pass a negative time, 'stopped' subtracts hours from the current time.
 If you forgot to stop the timer two and a quarter hours ago, simply call:
   tim stopped -2:15
+
+Set or add comments the same way as with 'tim stop'.
 
 To change the starting time without stopping the timer, see 'tim help adjust'.
 
@@ -802,7 +821,9 @@ def gently_kill_process(pid):
 
 INITIAL_TOTAL_KEYWORD = 'init:'
 COMMENT_SEPARATOR = '--'
-COMMENT_ADDITION_SEPARATOR = ' -- '
+COMMENT_ADDITION_SEPARATOR = '; '
+COMMENT_SET_ARG = COMMENT_SEPARATOR
+COMMENT_ADD_ARG = '++'
 NAME_RE = '([a-zA-Z_][a-zA-Z0-9_]*\.)*[a-zA-Z_][a-zA-Z0-9_]*'
 NAMES_RE = '(' + NAME_RE + ')(,' + NAME_RE + ')*'
 NAME_STR_RE = '\A' + NAME_RE + '\Z'
@@ -927,9 +948,9 @@ class Timing:
     self.started = started
     self.name = name
     self.minutes = minutes
-    self.comment = comment
-    if not self.comment:
-      self.comment = None
+    self._comment = comment
+    if not self._comment:
+      self._comment = None
     return self
 
   def matches(self, other):
@@ -937,7 +958,7 @@ class Timing:
       (other.started is None or self.started == other.started)
       and (other.name is None or self.name == other.name)
       and (other.minutes is None or self.minutes == other.minutes)
-      and (other.comment is None or self.comment == other.comment))
+      and (other._comment is None or self._comment == other._comment))
 
   def __cmp__(self, other):
     c = cmp(self.started, other.started)
@@ -946,7 +967,7 @@ class Timing:
     if c: return c
     c = cmp(self.minutes, other.minutes)
     if c: return c
-    c = cmp(self.comment, other.comment)
+    c = cmp(self._comment, other._comment)
     return c
 
   def clear(self):
@@ -969,9 +990,9 @@ class Timing:
     elts = [started_str,
             self.name or 'unnamed',
             minutes2str(minutes or 0)]
-    if self.comment:
+    if self._comment:
       elts.append(COMMENT_SEPARATOR)
-      elts.append(self.comment)
+      elts.append(self._comment)
     return ' '.join(elts)
 
   def __str__(self):
@@ -993,14 +1014,22 @@ class Timing:
                    )
       return self
 
+  def get_comment(self):
+    return self._comment
+
+  def set_comment(self, comment):
+    if not comment:
+      self._comment = None
+      return
+    c = comment.replace('\r','')
+    c = comment.replace('\n', COMMENT_ADDITION_SEPARATOR)
+    self._comment = c
+
   def add_comment(self, comment):
-    'Append to current comment. Return True iff self.comment changed.'
-    if comment:
-      was = self.comment
-      self.comment = join_comments(self.comment, comment)
-      if was != self.comment:
-        return True
-    return False
+    'Append to current comment. Return true iff self._comment changed.'
+    old_comment = self._comment
+    self.set_comment(join_comments(self._comment, comment))
+    return old_comment != self._comment
 
   def started_year(self):
     return time2year(self.started)
@@ -2865,14 +2894,18 @@ class Tim(Notify):
       self.timelog.add_name(name)
     self.msg('added ', name)
 
-  def stop(self, comment=None, stop_time=None):
+  def stop(self, comment=None, add_comment=False, stop_time=None):
     stopped_state = None
     with self.lock:
       stopped_state = self.get_state()
       t = stopped_state.timing
       if t.started:
         
-        t.comment = join_comments(t.comment, comment)
+        if comment is not None:
+          if add_comment:
+            t.add_comment(comment)
+          else:
+            t.set_comment(comment)
         
         if stop_time:
           new_minutes = int((stop_time - t.started) / 60)
@@ -2943,7 +2976,7 @@ class Tim(Notify):
         t = state.timing
         if t.started:
           if t.name == name_to_start:
-            if t.add_comment(comment):
+            if t.add_comment(comment) != comment:
               state.save()
             notify_args = (Notify.ALREADY_RUNNING, name_to_start)
             break
@@ -3123,6 +3156,20 @@ class Tim(Notify):
       t.started = now() - (minutes * 60)
       t.minutes = minutes
       state.save()
+
+  def adjust_comment(self, comment, add=False):
+    with self.lock:
+      state = self.get_state()
+      t = state.timing
+      if not t.started:
+        _raise('Can only adjust when a timing is running.')
+      old_comment = t.get_comment()
+      if add:
+        t.add_comment(comment)
+      else:
+        t.set_comment(comment)
+      state.save()
+      return old_comment
 
   def _forge(self, name, started, minutes, comment=None):
     t = Timing(name=name, started=started, minutes=minutes,
@@ -3857,20 +3904,45 @@ class TimCmdline:
       status = arg
       t = status.timing
       if t.started:
-        _msg('Running: ', t.name, '=', minutes2str(t.minutes), ' (since ',
-             time2str(t.started), ')')
+        cmt_str = ''
+        cmt = t.get_comment()
+        if cmt:
+          cmt_str = msgs2str(' -- ', cmt)
+        _msg(t.name, '=', minutes2str(t.minutes), cmt_str)
+        _msg('Running since ', time2str(t.started))
       else:
         _msg('Not running.')
 
 
-  def strip_comment(self, args):
-    comment = None
-    if COMMENT_SEPARATOR in args:
-      split_point = args.index(COMMENT_SEPARATOR)
-      if split_point < (len(args) - 1):
-        comment = ' '.join(args[split_point+1:])
-      args = args[:split_point]
-    return args, comment
+  def strip_comment(self, args, comment_set_arg=COMMENT_SET_ARG, comment_add_arg=COMMENT_ADD_ARG):
+    # allow two kinds of comment separator: '--' and '++'. Make sure the one
+    # that came first is used and any later one is ignored.
+    has_set_arg = comment_set_arg in args
+    if has_set_arg:
+      set_splitpoint = args.index(comment_set_arg)
+
+    has_add_arg = comment_add_arg in args
+    if has_add_arg:
+      add_splitpoint = args.index(comment_add_arg)
+
+    if has_set_arg and has_add_arg:
+      if set_splitpoint < add_splitpoint:
+        has_add_arg = False
+      else:
+        has_set_arg = False
+
+    if has_add_arg:
+      splitpoint = add_splitpoint
+    elif has_set_arg:
+      splitpoint = set_splitpoint
+    else:
+      return args, None, False
+
+    if splitpoint < (len(args) - 1):
+      comment = ' '.join(args[splitpoint+1:])
+    else:
+      comment = ''
+    return args[:splitpoint], comment, has_add_arg
 
 
   def cmd_new(self, *args):
@@ -3888,7 +3960,7 @@ class TimCmdline:
 
 
   def cmd_start(self, *args):
-    args, comment = self.strip_comment(args)
+    args, comment, add_comment = self.strip_comment(args)
     if len(args) < 1:
       _raise("'start' takes a name argument.\n", name_syntax_docstr)
     name = self.tim.find_full_name(args[0])
@@ -3897,14 +3969,15 @@ class TimCmdline:
              "try 'tim new ", args[0], "' first?", help_hint)
     if len(args) > 1:
       comment_msg = ''
-      if args[1].startswith('--'):
-        comment_msg = "\nNote: to add a comment, there has to be a space after '--'"
+      if args[1].startswith(COMMENT_SEPARATOR):
+        comment_msg = "\nNote: to add a comment, there has to be a space after '%s'" % (
+                      COMMENT_SEPARATOR)
       _raise("Unknown arguments: '", ' '.join(args[1:]), "'", comment_msg)
     self.tim.start(name, comment)
 
 
   def cmd_started(self, *args):
-    args, comment = self.strip_comment(args)
+    args, comment, add_comment = self.strip_comment(args)
     if len(args) < 2:
       _raise("'started' takes at least a name and a time-of-day argument.\n",
              name_syntax_docstr)
@@ -3915,24 +3988,26 @@ class TimCmdline:
 
 
   def cmd_stop(self, *args):
-    args, comment = self.strip_comment(args)
-    stopped_state = self.tim.stop(comment)
+    args, comment, add_comment = self.strip_comment(args)
+    if args:
+      _raise("'stop' takes no arguments besides the optional comment.")
+    stopped_state = self.tim.stop(comment, add_comment)
     # notification
     if not stopped_state:
       _raise('No timer is running.')
 
 
   def cmd_stopped(self, *args):
-    args, comment = self.strip_comment(args)
-    if not args:
-      _raise("'stopped' needs a time-of-day argument.")
+    args, comment, add_comment = self.strip_comment(args)
+    if not args or len(args) != 1:
+      _raise("'stopped' needs exactly one time-of-day argument.")
     time_arg = args[0]
     if time_arg.startswith('-'):
       minutes_ago = str2minutes(time_arg)
       stop_time = now() - (60 * abs(minutes_ago))
     else:
       stop_time = timeofdaystr2time(time_arg)
-    stopped_state = self.tim.stop(comment, stop_time=stop_time)
+    stopped_state = self.tim.stop(comment, add_comment, stop_time=stop_time)
     if not stopped_state:
       _raise('No timer is running.')
 
@@ -4071,36 +4146,49 @@ class TimCmdline:
     self.tim.timelog.fix(start_year, clear_initial_totals, fix_overlaps)
 
   def cmd_adjust(self, *args):
-    if len(args) < 1:
+    # allow two kinds of comment separator: '--' and '++'. Make sure the one
+    # that came first is used and any later one is ignored.
+    args, comment, add_comment = self.strip_comment(args)
+
+    if (len(args) < 1) and (comment is None):
       _raise("'adjust' needs an adjustment argument", help_hint)
+
     if (len(args) == 2) and (args[0] in ('@', '=', '+', '-')):
       args = (''.join(args),)
-    if len(args) != 1:
-      _raise("'adjust' takes exactly one argument", help_hint)
-    arg = args[0]
-    if arg[0] not in '@+-=':
-      _raise("invalid 'adjust' argument: '", arg, "'", help_hint)
+    if args:
+      if len(args) != 1:
+        _raise("'adjust' takes exactly one adjustment argument", help_hint)
 
-    cmd = arg[0]
-    try:
-      minutes_arg = str2minutes(arg[1:])
-    except FormatError as e:
-      _raise("invalid 'adjust' argument: ", e.msg, help_hint)
+      arg = args[0]
+      if arg[0] not in '@+-=':
+        _raise("invalid 'adjust' argument: '", arg, "'", help_hint)
 
-    if cmd == '@':
-      self.tim.adjust_start(timeofday2time(minutes_arg))
-    elif cmd == '+':
-      self.tim.adjust_add(minutes_arg)
-    elif cmd == '-':
-      self.tim.adjust_add(-minutes_arg)
-    elif cmd == '=':
-      self.tim.adjust_set(minutes_arg)
-    else:
-      _raise("invalid 'adjust' argument: '", arg, "'", help_hint)
+      cmd = arg[0]
+      try:
+        minutes_arg = str2minutes(arg[1:])
+      except FormatError as e:
+        _raise("invalid 'adjust' argument: ", e.msg, help_hint)
+
+      if cmd == '@':
+        self.tim.adjust_start(timeofday2time(minutes_arg))
+      elif cmd == '+':
+        self.tim.adjust_add(minutes_arg)
+      elif cmd == '-':
+        self.tim.adjust_add(-minutes_arg)
+      elif cmd == '=':
+        self.tim.adjust_set(minutes_arg)
+      else:
+        _raise("invalid 'adjust' argument: '", arg, "'", help_hint)
+
+    if comment is not None:
+      old_comment = self.tim.adjust_comment(comment, add=add_comment)
+      if old_comment and not add_comment:
+        _msg('Old comment was:\n -- ', old_comment, '\n')
+
     self.cmd_status()
 
   def cmd_forge(self, *args):
-    args, comment = self.strip_comment(args)
+    args, comment, add_comment = self.strip_comment(args)
 
     create_new = False
     if len(args) > 1 and args[0] == 'new':
@@ -4132,7 +4220,7 @@ class TimCmdline:
 
 
   def cmd_tickoff(self, *args):
-    args, comment = self.strip_comment(args)
+    args, comment, add_comment = self.strip_comment(args)
 
     if len(args) == 1 and args[0] == 'undo':
       t = self.tim.undo_last_tickoff()

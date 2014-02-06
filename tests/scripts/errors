@@ -4,3 +4,9 @@
 
 tim log year 2012 -x
 #E *** Invalid argument: '-x' (word 3)
+
+WARP TO 2014-02-06 12:00
+tim started aaa 10
+#O started aaa
+tim stopped 11 .. garble nonsense
+#E *** 'stopped' needs exactly one time-of-day argument.
