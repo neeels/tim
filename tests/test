@@ -583,7 +583,19 @@ if __name__ == "__main__":
 
   from optparse import OptionParser
 
-  p = OptionParser()
+  p = OptionParser(usage='usage: %prog [options] [test names]')
+  p.add_option('-?', dest='do_list',
+               help="list available test names.",
+               action='store_true', default=False)
+  p.add_option('-u', '--update', dest='do_update',
+               help='overwrite test expectations with actual output. This is '
+                  + '"dangerous" in that it overwrites the test script file.',
+               action='store_true',
+               default=False)
+  p.add_option('-v', '--verbose', dest='verbose',
+               help='print full actual test output.',
+               action='store_true',
+               default=False)
   p.add_option('-s', '--src', dest='tim_bin',
                help="path to the 'tim' script.",
                default=j('..', 'src', 'tim'))
@@ -595,19 +607,10 @@ if __name__ == "__main__":
                    +'stdout by default.',
                default=None)
   p.add_option('-t', '--tests-dir', dest='tests_dir',
-               help='dir where tests are located',
+               help='dir where tests are located.',
                default=j('.', 'scripts'))
   p.add_option('-k', '--keep-failed-test-files', dest='keep_failed_tests',
-               help='if true, work dirs for failed tests are not deleted',
-               action='store_true',
-               default=False)
-  p.add_option('-u', '--update', dest='do_update',
-               help='overwrite test expectations with actual output. This is '
-                  + '"dangerous" in that it overwrites the test script file.',
-               action='store_true',
-               default=False)
-  p.add_option('-v', '--verbose', dest='verbose',
-               help='print full actual test output',
+               help='if true, work dirs for failed tests are not deleted.',
                action='store_true',
                default=False)
 
@@ -624,6 +627,13 @@ if __name__ == "__main__":
                  keep_failed_tests=options.keep_failed_tests,
                  do_update=options.do_update,
                  verbose=options.verbose)
+
+  if options.do_list:
+    l = sorted(r.get_all_available_test_names())
+    print 'For help, use -h instead.\nAll available test names:\n'
+    print '\n'.join(sorted(r.get_all_available_test_names()))
+    print '\n(%d test files)' % len(l)
+    exit(0)
 
   if not args:
     if options.do_update:
