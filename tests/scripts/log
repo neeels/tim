@@ -49,3 +49,15 @@ tim log m 2013-01
 #O  =====
 #O  +4:30
 
+
+-tim forge 2013-12-30 12:00 foo 1
+-tim fix
+
+tim log 1 w f 2014
+#O 1 weeks, starting around 2014-01-01 00:00, showing entire weeks.
+#O Monday 2013-12-30 00:00 ... Sunday 2014-01-05 23:59:
+#O 2013-12-30 12:00 foo 1
+#O Sum of above timings:
+#O   1 foo
+#O  ==
+#O  +1
