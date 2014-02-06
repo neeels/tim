@@ -1,7 +1,7 @@
 Tim
 ===
 
-project timer (GUI + cmdline)
+project timer (cmdline, GUI not implemented)
 
 You enter project names and start and stop them.
 Tim will keep track of how much you worked (and when) and how many of these
