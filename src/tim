@@ -3552,13 +3552,15 @@ def systray_namespace(*args):
           reason = 'was not updated for a long time'
         elif reason == State.REASON_DAEMON_EXITED:
           reason = 'the daemon is no longer running'
+        interrupted = t.started + (t.minutes * 60)
         self.warn('detected undead timer!',
               '\nStopped timer, not counting interrupted time.',
               '\n         name: ', t.name,
               '\n      started: ', time2str(t.started),
               '\n      ran for: ', minutes2str(t.minutes),
-              '\n  interrupted: ', minutes2str((now()-t.started)/60 - t.minutes),
-                ' hours ago',
+              '\n  interrupted: ', time2str(interrupted),
+                             ' (',minutes2str((now() - interrupted)/60),
+                             ' hours ago)',
               '\n       reason: ', reason,
               )
 
