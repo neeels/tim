@@ -979,6 +979,11 @@ class Timing:
   def serialize(self):
     return repr(self) + '\n'
 
+  def indicator_str(self):
+    if self.started:
+      return '%s=%s'%(self.name.split('.')[-1], minutes2str(self.minutes))
+    return ''
+
   def to_string(self, rounder=None):
     if self.started:
       started_str = self.started_str()
@@ -1060,11 +1065,12 @@ class State:
   STOPPED = 'stopped'
   STARTING = 'starting:'
 
-  def __init__(self, state_file_path, read=True):
+  def __init__(self, state_file_path, indicator_path, read=True):
     self.pid = None
     self.starting_id = None
     self.timing = Timing()
     self.state_file_path = state_file_path
+    self.indicator_path = indicator_path
     if self.state_file_path and read:
       self.read()
 
@@ -1097,6 +1103,7 @@ class State:
   def save(self):
     "write this state to file"
     write_file(self.state_file_path, self.serialize())
+    write_file(self.indicator_path, self.timing.indicator_str(), append_newline=False)
     return self
 
   def write_starting(self, starting_id):
@@ -2885,6 +2892,7 @@ class Tim(Notify):
       #  if e.errno != errno.EEXIST:
       #   raise
     self.state_file_path = j(base_dir, 'running')
+    self.indicator_path = j(base_dir, 'indicator')
     self.timelog_dir = j(base_dir, 'timelog')
     self.lock_path = j(base_dir, 'lock')
     self.forgotten_path = j(base_dir, 'forgotten')
@@ -2941,11 +2949,11 @@ class Tim(Notify):
 
   def new_state(self):
     'return an empty, initialized State instance.'
-    return State(self.state_file_path, read=False)
+    return State(self.state_file_path, self.indicator_path, read=False)
 
   def _get_state_nonlocking(self):
     'use get_state() instead.'
-    return State(self.state_file_path)
+    return State(self.state_file_path, self.indicator_path)
 
   def get_state(self):
     'return the current state as on disk, no automatic fixing of stale status.'
