@@ -2065,6 +2065,9 @@ class Timelog(Notify):
       year = self.get_timings_for_year(yearnr)
       prev = None
       for t in year.timings:
+        if t.minutes < 0:
+          # ignore tickoff timings, which are negative.
+          continue
         if prev:
           prev_until = prev.started + 60 * prev.minutes 
         else:
@@ -3901,13 +3904,15 @@ class TimCmdline:
         reason = 'was not updated for a long time'
       elif reason == State.REASON_DAEMON_EXITED:
         reason = 'the daemon is no longer running'
+      interrupted = t.started + (t.minutes * 60)
       _warn('detected undead timer!',
             '\nStopped timer, not counting interrupted time.',
             '\n         name: ', t.name,
             '\n      started: ', time2str(t.started),
             '\n      ran for: ', minutes2str(t.minutes),
-            '\n  interrupted: ', minutes2str((now()-t.started)/60 - t.minutes),
-              ' hours ago',
+            '\n  interrupted: ', time2str(interrupted),
+                           ' (', minutes2str( (now() - interrupted) / 60 ),
+                           ' hours ago)',
             '\n       reason: ', reason,
             )
     elif key == Notify.STATUS:
