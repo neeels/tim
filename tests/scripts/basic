@@ -1,8 +1,11 @@
 WARP TO 1979-11-23 21:55
 tim new
-#E ...
+#E *** 'new' needs an argument: an unknown name to create.
 tim stop
 #E *** No timer is running.
+tim start foo
+#E *** Unknown name: 'foo' -- try 'tim new foo' first?
+#E --> 'tim help' may help.
 tim new foo
 #O added foo
 tim new foo
@@ -11,24 +14,34 @@ tim start foo
 #O started foo
 tim start foo
 #O *** Already running: foo
+tim stop bar
+#E *** No matching name found for 'bar'.
+tim new bar
+#O added bar
+tim stop bar
+#E *** Cannot stop 'bar', instead 'foo' is running.
 tim stop
 #O stopped foo
 #O started: 21:55
 #O ran for: 0:01
 tim stop
 #E *** No timer is running.
+tim stop foo
+#E *** No timer is running.
 tim foo
 #O started foo
 tim foo
 #O *** Already running: foo
-tim new bar
-#O added bar
 tim bar
 #O stopped foo
 #O started: 21:55
 #O ran for: 0:01
 #O started bar
-tim stop
+tim stop baz
+#E *** No matching name found for 'baz'.
+tim stop foo
+#E *** Cannot stop 'foo', instead 'bar' is running.
+tim stop bar
 #O stopped bar
 #O started: 21:55
 #O ran for: 0:01

@@ -7,6 +7,8 @@ tim new foo
 #O added foo
 tim started foo 10
 #O started foo
+tim stopped bar 11
+#E *** No matching name found for 'bar'.
 tim stopped 11
 #O stopped foo
 #O started: 10:00
@@ -14,6 +16,13 @@ tim stopped 11
 #O   ended: 11:00
 
 tim stopped 11:30
+#E *** No timer is running.
+
+tim stopped bar 11:30
+#E *** No matching name found for 'bar'.
+tim new bar
+#O added bar
+tim stopped bar 11:30
 #E *** No timer is running.
 
 WARP TO 2013-01-02 3
@@ -43,7 +52,7 @@ tim stopped 11
 tim
 #O foo=5
 #O Running since 2013-01-02 12:00
-tim stopped 12
+tim stopped foo 12
 #O stopped foo
 #O started: 12:00
 #O ran for: 0
