@@ -15,7 +15,9 @@ tim =1
 #O x=1 -- first comment
 #O Running since 2013-05-10 00:47
 tim stop
-#O stopped x (1)
+#O stopped x
+#O started: 0:47
+#O ran for: 1
 
 WARP TO 2013-05-10 3
 tim x -- second comment
@@ -24,23 +26,33 @@ tim =1
 #O x=1 -- second comment
 #O Running since 2013-05-10 02:00
 tim stop
-#O stopped x (1)
+#O stopped x
+#O started: 2:00
+#O ran for: 1
 
 WARP TO 2013-05-10 12
 tim started x 5 -- third comment
 #O started x
 tim stopped 6
-#O stopped x (1)
+#O stopped x
+#O started: 5:00
+#O ran for: 1
+#O   ended: 6:00
 
 tim started x 7
 #O started x
 tim stopped 8 -- fourth comment
-#O stopped x (1)
+#O stopped x
+#O started: 7:00
+#O ran for: 1
+#O   ended: 8:00
 
 tim started x 9
 #O started x
 tim stop -- sixth comment
-#O stopped x (3)
+#O stopped x
+#O started: 9:00
+#O ran for: 3
 
 tim forge 2013-05-10 8 x 1 -- fifth comment
 #O forged 2013-05-10 08:00 x 1 -- fifth comment
@@ -75,7 +87,10 @@ WARP TO 2013-05-11 12
 tim started x 9 -- first part
 #O started x
 tim stopped 10 ++ last part
-#O stopped x (1)
+#O stopped x
+#O started: 9:00
+#O ran for: 1
+#O   ended: 10:00
 
 tim start x -- temp first part
 #O started x
@@ -89,19 +104,26 @@ tim -- first part
 #O x=2 -- first part
 #O Running since 2013-05-11 10:00
 tim stop ++ last part
-#O stopped x (2)
+#O stopped x
+#O started: 10:00
+#O ran for: 2
 
 WARP TO 2013-05-11 15
 
 tim started x 12 -- temp part
 #O started x
 tim stopped 13 -- replacing part
-#O stopped x (1)
+#O stopped x
+#O started: 12:00
+#O ran for: 1
+#O   ended: 13:00
 
 tim started x 13 -- temp part
 #O started x
 tim stop -- replacing part
-#O stopped x (2)
+#O stopped x
+#O started: 13:00
+#O ran for: 2
 
 
 tim log 1 day

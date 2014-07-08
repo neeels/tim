@@ -10,7 +10,9 @@ tim start foo
 tim start foo
 #O *** Already running: foo
 tim stop
-#O stopped foo (0:01)
+#O stopped foo
+#O started: 19:30
+#O ran for: 0:01
 tim foo
 #O started foo
 tim foo
@@ -18,10 +20,14 @@ tim foo
 tim new bar
 #O added bar
 tim bar
-#O stopped foo (0:01)
+#O stopped foo
+#O started: 19:30
+#O ran for: 0:01
 #O started bar
 tim stop
-#O stopped bar (0:01)
+#O stopped bar
+#O started: 19:30
+#O ran for: 0:01
 tim log
 #O 1 weeks, ending now, showing entire weeks.
 #O Monday DATE ... Sunday DATE:

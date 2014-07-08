@@ -22,37 +22,55 @@ tim new ff.ggg.hh.iiiii.jj
 tim start foo
 #O started foo
 tim start a
-#O stopped foo (0:01)
+#O stopped foo
+#O started: 19:30
+#O ran for: 0:01
 #O started a
 tim start b
-#O stopped a (0:01)
+#O stopped a
+#O started: 19:30
+#O ran for: 0:01
 #O started a.b
 tim start d
 #E *** Multiple matches found for 'd':
 #E - c.d
 #E - e.d
 tim start c.d
-#O stopped a.b (0:01)
+#O stopped a.b
+#O started: 19:30
+#O ran for: 0:01
 #O started c.d
 tim start e.d
-#O stopped c.d (0:01)
+#O stopped c.d
+#O started: 19:30
+#O ran for: 0:01
 #O started e.d
 tim start e
-#O stopped e.d (0:01)
+#O stopped e.d
+#O started: 19:30
+#O ran for: 0:01
 #O started e
 tim start hh
-#O stopped e (0:01)
+#O stopped e
+#O started: 19:30
+#O ran for: 0:01
 #O started ff.ggg.hh
 tim start jj
-#O stopped ff.ggg.hh (0:01)
+#O stopped ff.ggg.hh
+#O started: 19:30
+#O ran for: 0:01
 #O started ff.ggg.hh.iiiii.jj
 tim start hh.iiiii
-#O stopped ff.ggg.hh.iiiii.jj (0:01)
+#O stopped ff.ggg.hh.iiiii.jj
+#O started: 19:30
+#O ran for: 0:01
 #O started ff.ggg.hh.iiiii
 tim start iiiii
 #O *** Already running: ff.ggg.hh.iiiii
 tim stop
-#O stopped ff.ggg.hh.iiiii (0:01)
+#O stopped ff.ggg.hh.iiiii
+#O started: 19:30
+#O ran for: 0:01
 tim log
 #O 1 weeks, ending now, showing entire weeks.
 #O Monday DATE ... Sunday DATE:

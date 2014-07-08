@@ -5,13 +5,19 @@ tim new foo
 tim started foo 10
 #O started foo
 tim stopped 11
-#O stopped foo (1)
+#O stopped foo
+#O started: 10:00
+#O ran for: 1
+#O   ended: 11:00
 
 WARP TO 2013-01-02 3
 tim started foo 22
 #O started foo
 tim stopped 23
-#O stopped foo (1)
+#O stopped foo
+#O started: 2013-01-01 22:00
+#O ran for: 1
+#O   ended: 2013-01-01 23:00
 
 tim log 2 d f 2013-01-01
 #O 2 days, starting around 2013-01-01 00:00, showing entire days.
@@ -32,7 +38,10 @@ tim
 #O foo=5
 #O Running since 2013-01-02 12:00
 tim stopped 12
-#O stopped foo (0)
+#O stopped foo
+#O started: 12:00
+#O ran for: 0
+#O   ended: 12:00
 tim log 2 d f 2013-01-01
 #O 2 days, starting around 2013-01-01 00:00, showing entire days.
 #O Tuesday 2013-01-01 00:00 ... Wednesday 2013-01-02 23:59:
@@ -52,7 +61,10 @@ tim started foo 12
 tim stopped 11
 #E *** Cannot stop before starting time: start = 2013-01-02 12:00; requested stop = 2013-01-02 11:00
 tim stopped 13
-#O stopped foo (1)
+#O stopped foo
+#O started: 12:00
+#O ran for: 1
+#O   ended: 13:00
 tim log 2 d f 2013-01-01
 #O 2 days, starting around 2013-01-01 00:00, showing entire days.
 #O Tuesday 2013-01-01 00:00 ... Wednesday 2013-01-02 23:59:
@@ -70,7 +82,10 @@ WARP TO 2013-01-03 12
 tim started foo 11
 #O started foo
 tim stopped -:10
-#O stopped foo (0:50)
+#O stopped foo
+#O started: 11:00
+#O ran for: 0:50
+#O   ended: 11:50
 tim log d
 #O 1 days, ending now, showing entire days.
 #O Thursday 2013-01-03 00:00 ... Thursday 2013-01-03 23:59:
@@ -90,7 +105,10 @@ tim
 #O foo=0:30
 #O Running since 2013-01-03 12:30
 tim stopped -0.05
-#O stopped foo (0:27)
+#O stopped foo
+#O started: 12:30
+#O ran for: 0:27
+#O   ended: 12:57
 tim log d
 #O 1 days, ending now, showing entire days.
 #O Thursday 2013-01-03 00:00 ... Thursday 2013-01-03 23:59:

@@ -105,7 +105,9 @@ tim log m 2013-01 round 0:15
 #O  +4:30
 
 tim stop
-#O stopped bar (0:59)
+#O stopped bar
+#O started: 11:01
+#O ran for: 0:59
 
 -mv ./timelog ./older_timelog_1
 
@@ -143,7 +145,10 @@ tim totals round 1 -s
 #O  +0:05
 
 tim stopped 11:01
-#O stopped aaa (0)
+#O stopped aaa
+#O started: 11:01
+#O ran for: 0
+#O   ended: 11:01
 
 -mv ./timelog ./older_timelog_2
 -tim new x
@@ -210,7 +215,10 @@ tim log year 2013 round 1 -s
 #O  =====
 #O  +0:09
 tim stopped 11:01
-#O stopped x (0)
+#O stopped x
+#O started: 11:01
+#O ran for: 0
+#O   ended: 11:01
 
 -tim new x.y
 -tim forge 2013-01-01 14:00 x.y 1:10

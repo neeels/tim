@@ -538,7 +538,7 @@ def handle_error(e):
 
 # generic conversion functions ###############################################
 
-def minutes2str(float_mins, always_show_sign=False):
+def minutes2str(float_mins, always_show_sign=False, omit_zero_minutes=True):
   sign = 1
   frac = 59.0
   if float_mins < 0:
@@ -552,7 +552,7 @@ def minutes2str(float_mins, always_show_sign=False):
 
   h, m = divmod(minutes, 60)
 
-  if m == 0:
+  if omit_zero_minutes and (m == 0):
     rstr = str(sign * h)
   else:
     rstr = '%d:%02d' % (h,m)
@@ -626,6 +626,11 @@ def time2str(float_time, fmt=TIMESTR_FORMAT):
   if not float_time:
     return None
   return time.strftime(fmt, time.localtime(float(float_time)))
+
+def time2str_short_if_today(float_time):
+  if time2date(float_time) == time2date(now()):
+    return minutes2str(time2hourofday(float_time) * 60, omit_zero_minutes=False)
+  return time2str(float_time)
 
 def time2date(float_time):
   return time2str(float_time, DATESTR_FORMAT)
@@ -881,6 +886,7 @@ class Notify(object):
   ERROR = 6
   FIX_NEEDED = 7
   STATUS = 8
+  STOP_NAME_MISMATCH = 9
 
   def __init__(self, notify_func):
     ''' notify_func(key, arg): function that notifies the user; the
@@ -1059,6 +1065,10 @@ class Timing:
       return True
     return False
 
+  def ended(self):
+    if not self.started:
+      return None
+    return self.started + (self.minutes * 60)
 
       
 class State:
@@ -2905,11 +2915,17 @@ class Tim(Notify):
       self.timelog.add_name(name)
     self.msg('added ', name)
 
-  def stop(self, comment=None, add_comment=False, stop_time=None):
+  def stop(self, comment=None, add_comment=False, stop_time=None, expect_name=None):
     stopped_state = None
     with self.lock:
       stopped_state = self.get_state()
       t = stopped_state.timing
+
+      if expect_name is not None:
+        if t.name != expect_name:
+          self.notify(Notify.STOP_NAME_MISMATCH, (expect_name, t.name))
+          return None
+
       if t.started:
         
         if comment is not None:
@@ -3528,6 +3544,9 @@ def systray_namespace(*args):
       if key == Notify.ALREADY_RUNNING:
         name = str(arg)
         self.warn('Already running: ', name)
+      elif key == Notify.STOP_NAME_MISMATCH:
+        expected_name, name = arg
+        self.warn('Cannot stop ', repr(expected_name), ', instead ', repr(name), ' is running.')
       elif key == Notify.STOPPED:
         state = arg
         t = state.timing
@@ -3555,7 +3574,7 @@ def systray_namespace(*args):
           reason = 'was not updated for a long time'
         elif reason == State.REASON_DAEMON_EXITED:
           reason = 'the daemon is no longer running'
-        interrupted = t.started + (t.minutes * 60)
+        interrupted = t.ended()
         self.warn('detected undead timer!',
               '\nStopped timer, not counting interrupted time.',
               '\n         name: ', t.name,
@@ -3877,11 +3896,21 @@ class TimCmdline:
     if key == Notify.ALREADY_RUNNING:
       name = str(arg)
       _warn('Already running: ', name)
+    elif key == Notify.STOP_NAME_MISMATCH:
+      expected_name, name = arg
+      _warn('Cannot stop ', repr(expected_name), ', instead ', repr(name), ' is running.')
     elif key == Notify.STOPPED:
       state = arg
       t = state.timing
+      stopped = t.ended()
+      if abs(now() - stopped) >= 60:
+        stopped_msg = msgs2str('\n  ended: ', time2str_short_if_today(stopped))
+      else:
+        stopped_msg = ''
       _msg('stopped ', t.name,
-           ' (', minutes2str(t.minutes), ')')
+           '\nstarted: ', time2str_short_if_today(t.started),
+           '\nran for: ', minutes2str(t.minutes),
+           stopped_msg,)
     elif key == Notify.STARTED:
       name = str(arg)
       _msg('started ', name)
@@ -4004,27 +4033,37 @@ class TimCmdline:
 
   def cmd_stop(self, *args):
     args, comment, add_comment = self.strip_comment(args)
-    if args:
+    expect_name = None
+    if len(args) == 1:
+      expect_name = self.tim.find_full_name(args[0], allow_none=False)
+    elif args:
       _raise("'stop' takes no arguments besides the optional comment.")
-    stopped_state = self.tim.stop(comment, add_comment)
+    stopped_state = self.tim.stop(comment, add_comment, expect_name=expect_name)
     # notification
     if not stopped_state:
-      _raise('No timer is running.')
+      _raise('No timer was stopped.')
 
 
   def cmd_stopped(self, *args):
     args, comment, add_comment = self.strip_comment(args)
-    if not args or len(args) != 1:
+    expect_name = None
+    if not args or len(args) > 2:
       _raise("'stopped' needs exactly one time-of-day argument.")
-    time_arg = args[0]
+    if len(args) == 2:
+      expect_name = self.tim.find_full_name(args[0], allow_none=False)
+      time_arg = args[1]
+    else:
+      assert len(args) == 1
+      time_arg = args[0]
+
     if time_arg.startswith('-'):
       minutes_ago = str2minutes(time_arg)
       stop_time = now() - (60 * abs(minutes_ago))
     else:
       stop_time = timeofdaystr2time(time_arg)
-    stopped_state = self.tim.stop(comment, add_comment, stop_time=stop_time)
+    stopped_state = self.tim.stop(comment, add_comment, stop_time=stop_time, expect_name=expect_name)
     if not stopped_state:
-      _raise('No timer is running.')
+      _raise('No timer was stopped.')
 
 
   def cmd_totals(self, *args):
