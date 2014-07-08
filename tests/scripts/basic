@@ -1,6 +1,8 @@
 WARP TO 1979-11-23 21:55
 tim new
 #E ...
+tim stop
+#E *** No timer is running.
 tim new foo
 #O added foo
 tim new foo
@@ -13,6 +15,8 @@ tim stop
 #O stopped foo
 #O started: 21:55
 #O ran for: 0:01
+tim stop
+#E *** No timer is running.
 tim foo
 #O started foo
 tim foo

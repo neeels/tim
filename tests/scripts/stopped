@@ -1,5 +1,8 @@
 WARP TO 2013-01-01 12
 
+tim stopped 11
+#E *** No timer is running.
+
 tim new foo
 #O added foo
 tim started foo 10
@@ -9,6 +12,9 @@ tim stopped 11
 #O started: 10:00
 #O ran for: 1
 #O   ended: 11:00
+
+tim stopped 11:30
+#E *** No timer is running.
 
 WARP TO 2013-01-02 3
 tim started foo 22
