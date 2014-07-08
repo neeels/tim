@@ -886,7 +886,6 @@ class Notify(object):
   ERROR = 6
   FIX_NEEDED = 7
   STATUS = 8
-  STOP_NAME_MISMATCH = 9
 
   def __init__(self, notify_func):
     ''' notify_func(key, arg): function that notifies the user; the
@@ -2923,8 +2922,7 @@ class Tim(Notify):
 
       if expect_name is not None:
         if t.name != expect_name:
-          self.notify(Notify.STOP_NAME_MISMATCH, (expect_name, t.name))
-          return None
+          _raise('Cannot stop ', repr(expect_name), ', instead ', repr(t.name), ' is running.')
 
       if t.started:
         
@@ -3544,9 +3542,6 @@ def systray_namespace(*args):
       if key == Notify.ALREADY_RUNNING:
         name = str(arg)
         self.warn('Already running: ', name)
-      elif key == Notify.STOP_NAME_MISMATCH:
-        expected_name, name = arg
-        self.warn('Cannot stop ', repr(expected_name), ', instead ', repr(name), ' is running.')
       elif key == Notify.STOPPED:
         state = arg
         t = state.timing
@@ -3896,9 +3891,6 @@ class TimCmdline:
     if key == Notify.ALREADY_RUNNING:
       name = str(arg)
       _warn('Already running: ', name)
-    elif key == Notify.STOP_NAME_MISMATCH:
-      expected_name, name = arg
-      _warn('Cannot stop ', repr(expected_name), ', instead ', repr(name), ' is running.')
     elif key == Notify.STOPPED:
       state = arg
       t = state.timing
@@ -4041,7 +4033,7 @@ class TimCmdline:
     stopped_state = self.tim.stop(comment, add_comment, expect_name=expect_name)
     # notification
     if not stopped_state:
-      _raise('No timer was stopped.')
+      _raise('No timer is running.')
 
 
   def cmd_stopped(self, *args):
@@ -4063,7 +4055,7 @@ class TimCmdline:
       stop_time = timeofdaystr2time(time_arg)
     stopped_state = self.tim.stop(comment, add_comment, stop_time=stop_time, expect_name=expect_name)
     if not stopped_state:
-      _raise('No timer was stopped.')
+      _raise('No timer is running.')
 
 
   def cmd_totals(self, *args):
