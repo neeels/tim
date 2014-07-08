@@ -499,7 +499,7 @@ class TestRunner:
         if this_line_failed:
           if self.do_update:
             test[i] = (line, cmd, stdout, stderr)
-            self.log('** Updating test ', test_name, ':')
+            self.log("** Updating test '", test_name, "':")
             self.log_cmd(line, stdout, stderr)
           else:
             break
