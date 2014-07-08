@@ -1,4 +1,4 @@
-MANGLE DATES
+WARP TO 1979-11-23 21:55
 tim new foo
 #O added foo
 tim new moo
@@ -9,27 +9,27 @@ tim foo
 #O started foo
 tim + 1
 #O foo=1
-#O Running since DATE
+#O Running since 1979-11-23 20:55
 tim moo
 #O stopped foo
-#O started: 18:30
+#O started: 20:55
 #O ran for: 1
 #O started moo
 tim =2.75
 #O moo=2:45
-#O Running since DATE
+#O Running since 1979-11-23 19:10
 tim goo
 #O stopped moo
-#O started: 16:45
+#O started: 19:10
 #O ran for: 2:45
 #O started goo
 tim +3:30
 #O goo=3:30
-#O Running since DATE
+#O Running since 1979-11-23 18:25
 tim -1:1
 #O goo=2:29
-#O Running since DATE
+#O Running since 1979-11-23 19:26
 tim stop
 #O stopped goo
-#O started: 17:01
+#O started: 19:26
 #O ran for: 2:29

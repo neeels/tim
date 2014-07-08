@@ -1,4 +1,4 @@
-MANGLE DATES
+WARP TO 1979-11-23 21:55
 tim new
 #E ...
 tim new foo
@@ -11,7 +11,7 @@ tim start foo
 #O *** Already running: foo
 tim stop
 #O stopped foo
-#O started: 19:30
+#O started: 21:55
 #O ran for: 0:01
 tim foo
 #O started foo
@@ -21,19 +21,19 @@ tim new bar
 #O added bar
 tim bar
 #O stopped foo
-#O started: 19:30
+#O started: 21:55
 #O ran for: 0:01
 #O started bar
 tim stop
 #O stopped bar
-#O started: 19:30
+#O started: 21:55
 #O ran for: 0:01
 tim log
 #O 1 weeks, ending now, showing entire weeks.
-#O Monday DATE ... Sunday DATE:
-#O DATE foo 0:01
-#O DATE foo 0:01
-#O DATE bar 0:01
+#O Monday 1979-11-19 00:00 ... Sunday 1979-11-25 23:59:
+#O 1979-11-23 21:55 foo 0:01
+#O 1979-11-23 21:55 foo 0:01
+#O 1979-11-23 21:55 bar 0:01
 #O Sum of above timings:
 #O   0:01 bar
 #O   0:02 foo
