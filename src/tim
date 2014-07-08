@@ -2920,11 +2920,11 @@ class Tim(Notify):
       stopped_state = self.get_state()
       t = stopped_state.timing
 
-      if expect_name is not None:
-        if t.name != expect_name:
-          _raise('Cannot stop ', repr(expect_name), ', instead ', repr(t.name), ' is running.')
-
       if t.started:
+
+        if expect_name is not None:
+          if t.name != expect_name:
+            _raise('Cannot stop ', repr(expect_name), ', instead ', repr(t.name), ' is running.')
         
         if comment is not None:
           if add_comment:
