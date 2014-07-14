@@ -1,0 +1,30 @@
+WARP TO 1979-11-23 21:55
+
+tim new foo
+#O added foo
+tim new bar
+#O added bar
+
+tim started foo 10
+#O started foo at 10:00
+tim started bar 11
+#O stopped foo
+#O started: 10:00
+#O ran for: 1
+#O   ended: 11:00
+#O started bar at 11:00
+tim stopped bar 12
+#O stopped bar
+#O started: 11:00
+#O ran for: 1
+#O   ended: 12:00
+tim log d
+#O 1 days, ending now, showing entire days.
+#O Friday 1979-11-23 00:00 ... Friday 1979-11-23 23:59:
+#O 1979-11-23 10:00 foo 1
+#O 1979-11-23 11:00 bar 1
+#O Sum of above timings:
+#O   1 bar
+#O   1 foo
+#O  ==
+#O  +2
