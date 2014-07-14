@@ -47,7 +47,7 @@ tim log y 2013 round 0:15
 
 
 tim started bar 11:01
-#O started bar
+#O started bar at 11:01
 
 tim totals
 #O Totals:
@@ -130,7 +130,7 @@ tim totals round 1 -s
 #O  +0:06
 
 tim started aaa 11:01
-#O started aaa
+#O started aaa at 11:01
 tim totals round 1 -s
 #O Totals:
 #O   2 aaa
@@ -186,7 +186,7 @@ tim log year 2013 round 1 -s
 #O  +0:10
 
 tim started x 11:01
-#O started x
+#O started x at 11:01
 tim totals round 1 -s only x
 #O Totals, selection:
 #O   8 x

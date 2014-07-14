@@ -6,7 +6,7 @@ tim stopped 11
 tim new foo
 #O added foo
 tim started foo 10
-#O started foo
+#O started foo at 10:00
 tim stopped bar 11
 #E *** No matching name found for 'bar'.
 tim stopped 11
@@ -27,7 +27,7 @@ tim stopped bar 11:30
 
 WARP TO 2013-01-02 3
 tim started foo 22
-#O started foo
+#O started foo at 2013-01-01 22:00
 tim stopped 23
 #O stopped foo
 #O started: 2013-01-01 22:00
@@ -46,7 +46,7 @@ tim log 2 d f 2013-01-01
 
 WARP TO 2013-01-02 17
 tim started foo 12
-#O started foo
+#O started foo at 12:00
 tim stopped 11
 #E *** Cannot stop before starting time: start = 2013-01-02 12:00; requested stop = 2013-01-02 11:00
 tim
@@ -72,7 +72,7 @@ cat ~/timelog/2013
 #O 2013-01-01 22:00 foo 1
 
 tim started foo 12
-#O started foo
+#O started foo at 12:00
 tim stopped 11
 #E *** Cannot stop before starting time: start = 2013-01-02 12:00; requested stop = 2013-01-02 11:00
 tim stopped 13
@@ -95,7 +95,7 @@ tim log 2 d f 2013-01-01
 WARP TO 2013-01-03 12
 
 tim started foo 11
-#O started foo
+#O started foo at 11:00
 tim stopped -:10
 #O stopped foo
 #O started: 11:00
@@ -113,7 +113,7 @@ tim log d
 
 WARP TO 2013-01-03 13
 tim started foo 12:30
-#O started foo
+#O started foo at 12:30
 tim stopped -2
 #E *** Cannot stop before starting time: start = 2013-01-03 12:30; requested stop = 2013-01-03 11:00
 tim
