@@ -3022,7 +3022,7 @@ class Tim(Notify):
             notify_args = (Notify.ALREADY_RUNNING, name_to_start)
             break
           else:
-            self.stop()
+            self.stop(stop_time=start_time)
         
         notify_args = self._new_timing_daemon(start_time, name_to_start, comment)
         break
