@@ -493,6 +493,13 @@ def now():
   global global_timewarp
   return time.time() + global_timewarp
 
+def time_round_to_minutes(t):
+  return str2time( time2str( t ) )
+
+def minutes_since(t):
+  return int((time_round_to_minutes(now()) - time_round_to_minutes(t)) / 60)
+  
+
 
 # messaging and error handling ###############################################
 
@@ -886,6 +893,7 @@ class Notify(object):
   ERROR = 6
   FIX_NEEDED = 7
   STATUS = 8
+  STARTED_AT = 9
 
   def __init__(self, notify_func):
     ''' notify_func(key, arg): function that notifies the user; the
@@ -899,6 +907,14 @@ class Notify(object):
       Notify.ALREADY_RUNNING:
         arg: the name of the project that was successfully started / stopped
               / was not started since the same name is already running.
+
+      Notify.STARTED_AT:
+        arg: (name, started_time)
+             name: the name of the project that was successfully started.
+             started_time: a timestamp of the time (seconds-since-1970)
+               when the timer was started. This is called by the
+               'tim started' command, where a timer "was started" in the past
+               after the fact.
 
       Notify.STOPPED,
         arg: a State instance reflecting the state that has just been stopped
@@ -2985,7 +3001,7 @@ class Tim(Notify):
         self.handle_stale_state(state)
       return state
 
-  def start(self, name_to_start, comment=None, create_if_missing=False):
+  def start(self, name_to_start, comment=None, create_if_missing=False, start_time=None):
     '''name_to_start: full project name ('root.bar.baz') '''
 
     notify_args = None
@@ -3008,15 +3024,19 @@ class Tim(Notify):
           else:
             self.stop()
         
-        notify_args = self._new_timing_daemon(now(), name_to_start, comment)
+        notify_args = self._new_timing_daemon(start_time, name_to_start, comment)
         break
 
     if notify_args:
       self.notify(*notify_args)
 
-  def _new_timing_daemon(self, starting_time, name_to_start, comment):
+  def _new_timing_daemon(self, start_time, name_to_start, comment):
+    explicit_start_time = start_time is not None
+    if not explicit_start_time:
+      start_time = now()
+
     # do a rounding to Tim's precision
-    original_starting_time = str2time( time2str( starting_time ) )
+    original_start_time = time_round_to_minutes(start_time)
 
     starting_id = ','.join((str(os.getpid()), str(time.time())))
     self.new_state().write_starting(starting_id)
@@ -3031,7 +3051,7 @@ class Tim(Notify):
 
       daemon_out = open(j(self.base_dir, 'daemon.log'), 'a+')
       daemon_out.write(msgs2str(time2str(now()),' -- launching daemon for ',
-                       time2str(original_starting_time), ' ', name_to_start,
+                       time2str(original_start_time), ' ', name_to_start,
                        '\n'))
       daemon_out.flush()
 
@@ -3057,8 +3077,8 @@ class Tim(Notify):
           imperative_state = self.new_state()
           imperative_state.set_values(
             name=name_to_start,
-            started=original_starting_time,
-            minutes=1,  # <-- debug  minutes=0,
+            started=original_start_time,
+            minutes=max(1, minutes_since(original_start_time)),
             comment=comment,
             pid=daemon_pid)
           # the parent process is keeping the lock until I write my PID into
@@ -3088,10 +3108,13 @@ class Tim(Notify):
     while True:
       state = self.get_state()
 
-      if (state and (state.timing.started == original_starting_time)
+      if (state and (state.timing.started == original_start_time)
           and (state.timing.name == name_to_start)):
         # success, the daemon has written its PID to the state file.
-        return (Notify.STARTED, name_to_start)
+        if explicit_start_time:
+          return (Notify.STARTED_AT, (name_to_start, original_start_time))
+        else:
+          return (Notify.STARTED, name_to_start)
         # returning will release the lock.
 
       if tries < 1:
@@ -3550,6 +3573,11 @@ def systray_namespace(*args):
       elif key == Notify.STARTED:
         name = str(arg)
         self.msg('started ', name)
+      elif key == Notify.STARTED_AT:
+        name, started_time = arg
+        name = str(name)
+        self.msg('started ', name, ' at ',
+                 time2str_short_if_today(started_time))
       elif key == Notify.FIX_NEEDED:
         yearnr = arg
         self.warn('remember to call \'tim fix ', yearnr, '\' at some point.')
@@ -3906,6 +3934,11 @@ class TimCmdline:
     elif key == Notify.STARTED:
       name = str(arg)
       _msg('started ', name)
+    elif key == Notify.STARTED_AT:
+      name, started_time = arg
+      name = str(name)
+      _msg('started ', name, ' at ',
+           time2str_short_if_today(started_time))
     elif key == Notify.FIX_NEEDED:
       yearnr = arg
       _warn('remember to call \'tim fix ', yearnr, '\' at some point.')
@@ -4019,8 +4052,7 @@ class TimCmdline:
              name_syntax_docstr)
     name = self.tim.find_full_name(args[0], allow_none=False)
     start_time = timeofdaystr2time(args[1])
-    self.tim.start(name, comment)
-    self.tim.adjust_start(start_time)
+    self.tim.start(name, comment, start_time=start_time)
 
 
   def cmd_stop(self, *args):
