@@ -333,6 +333,9 @@ the end-of-a-day boundary (may be useful if you work around midnight and don't
 want those timings to be divided between two calendar days).
   
 Options:
+  -d
+    Decimal. Instead of h:mm, show hours in decimal. '1:23' becomes '1.383'.
+
   -f
     Flat. Show timings separately for each group, do not add them up to the
     parent groups. This might help to examine ticked off hours.
@@ -545,7 +548,7 @@ def handle_error(e):
 
 # generic conversion functions ###############################################
 
-def minutes2str(float_mins, always_show_sign=False, omit_zero_minutes=True):
+def minutes2str(float_mins, always_show_sign=False, omit_zero_minutes=True, decimal=False):
   sign = 1
   frac = 59.0
   if float_mins < 0:
@@ -556,6 +559,9 @@ def minutes2str(float_mins, always_show_sign=False, omit_zero_minutes=True):
   minutes = int(float_mins)
   if float_mins - float(minutes) > (frac/60):
     minutes += 1
+
+  if decimal:
+    return '%.3f' % ((float(minutes) / 60.) * sign)
 
   h, m = divmod(minutes, 60)
 
@@ -1005,7 +1011,7 @@ class Timing:
       return '%s=%s'%(self.name.split('.')[-1], minutes2str(self.minutes))
     return ''
 
-  def to_string(self, rounder=None):
+  def to_string(self, rounder=None, decimal=False):
     if self.started:
       started_str = self.started_str()
     else:
@@ -1015,7 +1021,7 @@ class Timing:
       minutes = rounder.round(self.name, minutes)
     elts = [started_str,
             self.name or 'unnamed',
-            minutes2str(minutes or 0)]
+            minutes2str(minutes or 0, decimal=decimal)]
     if self._comment:
       elts.append(COMMENT_SEPARATOR)
       elts.append(self._comment)
@@ -1317,7 +1323,7 @@ class Totals:
     self.modified = True
 
   def to_string(self, flat=False, only=None, omit_zero=False, rounder=None,
-                clear_rounder=True):
+                clear_rounder=True, decimal=False):
     '''flat: if True, each line shows a full name, all in one column.
              If False, indents subgroups.
        only: A list of project names (str). If None or empty, all names
@@ -1359,7 +1365,7 @@ class Totals:
 
     if flat:
       def total2str(name, minutes, always_show_sign=False):
-        mins_str = minutes2str(minutes, always_show_sign)
+        mins_str = minutes2str(minutes, always_show_sign, decimal=decimal)
         if not ':' in mins_str:
           mins_str += '   '
         mins_str = '%9s' % mins_str
@@ -1394,7 +1400,7 @@ class Totals:
         val_d = {}
         if val:
           val_d[OWN] = val
-          val_d[OWNSTR] = minutes2str(val)
+          val_d[OWNSTR] = minutes2str(val, decimal=decimal)
         d[last_name] = val_d
 
       def trickle_sums(a_dict, full_name='', last_name=None):
@@ -1411,7 +1417,7 @@ class Totals:
                                  full_name=child_full_name,
                                  last_name=child_name)
           minutes_sum += sub_sum
-        a_dict[SUMSTR] = minutes2str(minutes_sum)
+        a_dict[SUMSTR] = minutes2str(minutes_sum, decimal=decimal)
         a_dict[SUM_SAME_AS_OWN] = (minutes_sum == own_minutes)
         return minutes_sum
       #end of trickle_sums()
@@ -2222,7 +2228,8 @@ class Timelog(Notify):
     def __init__(self, unit=None, amount=None, start=None, end=None,
                  snap_to_calendar=None, include_end=None, include_start=None,
                  round_to_minutes=None, sum_unit=None, sum_amount=None,
-                 group=None, only=None, flat=None):
+                 group=None, only=None, flat=None,
+                 decimal=None):
       '''unit: a UNIT_* constant.
          amount: a float number.
          start: a start date in unix time (seconds since epoch), inclusive.
@@ -2243,6 +2250,7 @@ class Timelog(Notify):
       self.group = group
       self.only = only
       self.flat = flat
+      self.decimal = decimal
 
   class QueryResult:
     def __init__(self):
@@ -2263,6 +2271,7 @@ class Timelog(Notify):
       self.flat = None
       self.only = None
       self.show_surplus = None
+      self.decimal = None
 
 
     def description_str(self):
@@ -2571,6 +2580,8 @@ class Timelog(Notify):
                              + "'",
                            self.unit)
           self.unit = arg_unit
+        elif '-d' == self.token:
+          self.decimal = True
         elif '-f' == self.token:
           self.flat = True
         elif '-s' == self.token:
@@ -2727,6 +2738,7 @@ class Timelog(Notify):
     # the sum unit and amount are just fed through to the view
     query_result.sum_unit = query.sum_unit
     query_result.sum_amount = query.sum_amount
+    query_result.decimal = query.decimal
 
     query_result.flat = query.flat
 
@@ -4178,18 +4190,21 @@ class TimCmdline:
     if rounder:
       rounder.clear_surplus()
 
-    def show_entries(desc, entries, totals):
+    def show_entries(desc, entries, totals, decimal):
       if desc:
         _msg(desc)
       for entry in entries:
-        _msg(entry.to_string(rounder=rounder))
+        _msg(entry.to_string(rounder=rounder, decimal=decimal))
       _msg('Sum of above timings:\n',
-          totals.to_string(flat=flat, rounder=rounder))
+          totals.to_string(flat=flat, rounder=rounder, decimal=decimal))
+
+    dec = query_result.decimal
 
     if query_result.sum_unit is None:
       show_entries(query_result.description_str(),
                    query_result.timings,
-                   query_result.totals)
+                   query_result.totals,
+                   dec)
 
     else:
       _msg(query_result.description_str())
@@ -4210,16 +4225,16 @@ class TimCmdline:
 
       for entry in query_result.timings:
         if entry.started > unit_end:
-          show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals)
+          show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals, dec)
           unit_entries = []
           unit_totals = Totals()
           unit_end = date_end_of(u, entry.started)
         unit_entries.append(entry)
         unit_totals.add_timing(entry)
-      show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals)
+      show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals, dec)
 
       show_entries('\n',
-                   [], query_result.totals)
+                   [], query_result.totals, dec)
 
 
     
