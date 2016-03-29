@@ -340,6 +340,9 @@ Options:
     Flat. Show timings separately for each group, do not add them up to the
     parent groups. This might help to examine ticked off hours.
 
+  -p
+    Only positive entries are shown and added up.
+
   -s
     Show surplus. If you passed a 'round' argument, the rounding will
     probably have a bit too many or too few minutes after all timings have
@@ -2228,7 +2231,7 @@ class Timelog(Notify):
     def __init__(self, unit=None, amount=None, start=None, end=None,
                  snap_to_calendar=None, include_end=None, include_start=None,
                  round_to_minutes=None, sum_unit=None, sum_amount=None,
-                 group=None, only=None, flat=None,
+                 group=None, only=None, flat=None, only_positive=None,
                  decimal=None):
       '''unit: a UNIT_* constant.
          amount: a float number.
@@ -2250,6 +2253,7 @@ class Timelog(Notify):
       self.group = group
       self.only = only
       self.flat = flat
+      self.only_positive = only_positive
       self.decimal = decimal
 
   class QueryResult:
@@ -2271,6 +2275,7 @@ class Timelog(Notify):
       self.flat = None
       self.only = None
       self.show_surplus = None
+      self.only_positive = None
       self.decimal = None
 
 
@@ -2345,6 +2350,9 @@ class Timelog(Notify):
               ((timing.started < self.end)
                or
                (self.include_end and (timing.started == self.end)))
+              and
+              ((not self.only_positive)
+               or (timing.minutes >= 0))
              )
 
     def __repr__(self):
@@ -2582,6 +2590,8 @@ class Timelog(Notify):
           self.unit = arg_unit
         elif '-d' == self.token:
           self.decimal = True
+        elif '-p' == self.token:
+          self.only_positive = True
         elif '-f' == self.token:
           self.flat = True
         elif '-s' == self.token:
@@ -2665,6 +2675,7 @@ class Timelog(Notify):
     include_start = query.include_start
     include_end = query.include_end
     snap_to_calendar = query.snap_to_calendar
+    only_positive = query.only_positive
 
     # defaults
     if (start is None) and (end is None):
@@ -2749,7 +2760,7 @@ class Timelog(Notify):
 
 
   def get_entries(self, start_date, end_date, include_start, include_end,
-                  only=None):
+                  only=None, only_positive=False):
     if start_date > end_date:
       _raise('Start date is later than end date: ',
              time2str(start_date) , ' > ', time2str(end_date), '.')
@@ -2769,11 +2780,14 @@ class Timelog(Notify):
     result.include_start = include_start
     result.include_end = include_end
     result.only = only
+    result.only_positive = only_positive
 
     while y <= end_year:
       year = self.get_timings_for_year(y)
       for timing in year.timings:
         if only and not (timing.name in only):
+          continue
+        if only_positive and timing.minutes <= 0:
           continue
         if result.matches_timing(timing):
           result.add_timing(timing)
