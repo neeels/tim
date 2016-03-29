@@ -2353,6 +2353,9 @@ class Timelog(Notify):
               and
               ((not self.only_positive)
                or (timing.minutes >= 0))
+              and
+              ((not self.only)
+               or (timing.name in self.only))
              )
 
     def __repr__(self):
