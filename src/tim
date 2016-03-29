@@ -291,7 +291,7 @@ Available tokens:
   before <date> -- like 'until', but EXCLUDING <date>.
   exactly       -- do not snap to day/week/month start.
   only <names>  -- show logs for only the given names.
-  sum <unit>
+  sum <unit>    -- summarize per day/week/month
 
 A <date> is of the format 'YYYY-MM-DD_hh:mm', where parts of it may be
 omitted. If <date> starts with a dash, the current year is inserted:
@@ -2239,6 +2239,7 @@ class Timelog(Notify):
       self.include_end = include_end
       self.round_to_minutes = round_to_minutes
       self.sum_unit = sum_unit
+      self.sum_amount = sum_amount
       self.group = group
       self.only = only
       self.flat = flat
@@ -2607,7 +2608,6 @@ class Timelog(Notify):
               self.err('Expecting time unit')
           else:
             self.sum_amount = 1
-          self.err('sum not implemented')
         elif 'only'.startswith(self.token):
           self.superfluous("'only' argument", self.only)
           self.next_arg()
@@ -2716,14 +2716,18 @@ class Timelog(Notify):
         only.extend(totals.find_full_names(name))
 
     query_result = self.get_entries(start, end, include_start, include_end,
-                                    only)
+                                    only, only_positive)
 
     # enrich result with information about the values queried
     query_result.from_query = query
     query_result.unit = unit
     query_result.amount = amount
     query_result.snap_to_calendar = snap_to_calendar
-    
+
+    # the sum unit and amount are just fed through to the view
+    query_result.sum_unit = query.sum_unit
+    query_result.sum_amount = query.sum_amount
+
     query_result.flat = query.flat
 
     if query.round_to_minutes:
@@ -4160,30 +4164,64 @@ class TimCmdline:
     args = [arg for arg in args if arg not in ('-s', '-f')]
 
     query_result = self.tim.timelog.run_query_phrase(args)
-    _msg(query_result.description_str())
+
+    status = self.tim.get_state()
+    t = status.timing
+    if t.started and t.minutes and query_result.matches_timing(t):
+      query_result.add_timing(t)
+
     if not query_result.timings:
+      _msg(query_result.description_str())
       _warn('No entries found.')
       return
     rounder = query_result.rounder
     if rounder:
       rounder.clear_surplus()
-    for entry in query_result.timings:
-      _msg(entry.to_string(rounder=rounder))
 
-    status = self.tim.get_state()
-    totals = query_result.totals
+    def show_entries(desc, entries, totals):
+      if desc:
+        _msg(desc)
+      for entry in entries:
+        _msg(entry.to_string(rounder=rounder))
+      _msg('Sum of above timings:\n',
+          totals.to_string(flat=flat, rounder=rounder))
 
-    t = status.timing
-    r = query_result
-    if t.started and t.minutes and query_result.matches_timing(t):
-      _msg(t.to_string(rounder=rounder))
-      totals.add_timing(t)
-      
-    if rounder:
-      surplus1 = rounder.surplus
-    
-    _msg('Sum of above timings:\n',
-         totals.to_string(flat=flat, rounder=rounder))
+    if query_result.sum_unit is None:
+      show_entries(query_result.description_str(),
+                   query_result.timings,
+                   query_result.totals)
+
+    else:
+      _msg(query_result.description_str())
+
+      # group by unit
+      unit_totals = Totals()
+      u = query_result.sum_unit
+      first = query_result.timings[0]
+      unit_end = date_end_of(u, first.started)
+      unit_entries = []
+
+      def unit_descr(unit_end):
+        unit_start = date_subtract(1, u, unit_end)
+        return msgs2str(
+           time2weekdaystr(unit_start), ' ', time2str(unit_start),
+           ' ... ',
+           time2weekdaystr(unit_end), ' ', time2str(unit_end), ':')
+
+      for entry in query_result.timings:
+        if entry.started > unit_end:
+          show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals)
+          unit_entries = []
+          unit_totals = Totals()
+          unit_end = date_end_of(u, entry.started)
+        unit_entries.append(entry)
+        unit_totals.add_timing(entry)
+      show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals)
+
+      show_entries('\n',
+                   [], query_result.totals)
+
+
     
     if rounder:
       diff = diff_totals(rounder.surplus, surplus1)
