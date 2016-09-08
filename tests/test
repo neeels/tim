@@ -583,7 +583,7 @@ if __name__ == "__main__":
 
   from optparse import OptionParser
 
-  p = OptionParser(usage='usage: %prog [options] [test names]')
+  p = OptionParser(usage='usage: %prog [options] [<test names>|all]')
   p.add_option('-?', dest='do_list',
                help="list available test names.",
                action='store_true', default=False)
@@ -635,9 +635,10 @@ if __name__ == "__main__":
     print '\n(%d test files)' % len(l)
     exit(0)
 
-  if not args:
-    if options.do_update:
-      _raise('please supply explicit test names with -u')
+  if not args and options.do_update:
+    _raise('please supply explicit test names with -u, e.g.: -u all')
+
+  if not args or args == ['all']:
     args = sorted(r.get_all_available_test_names())
 
   r.run_many(args)
