@@ -1,0 +1,54 @@
+WARP TO 1979-11-23 21:55
+
+tim new foo
+#O added foo
+tim new bar
+#O added bar
+
+tim started foo 10 -- some comment
+#O started foo at 10:00 -- some comment
+tim stopped 11
+#O stopped foo -- some comment
+#O started: 10:00
+#O ran for: 1
+#O   ended: 11:00
+tim cont
+#O started foo -- some comment
+tim
+#O foo=0:01 -- some comment
+#O Running since 1979-11-23 21:55
+tim + :30
+#O foo=0:30 -- some comment
+#O Running since 1979-11-23 21:25
+tim stopped 21:42
+#O stopped foo -- some comment
+#O started: 21:25
+#O ran for: 0:17
+#O   ended: 21:42
+
+tim cont -- another comment
+#O started foo -- another comment
+tim + :10
+#O foo=0:10 -- another comment
+#O Running since 1979-11-23 21:45
+tim cont -- third comment
+#O stopped foo -- another comment
+#O started: 21:45
+#O ran for: 0:10
+#O started foo -- third comment
+tim stop
+#O stopped foo -- third comment
+#O started: 21:55
+#O ran for: 0:01
+
+tim log
+#O 1 weeks, ending now, showing entire weeks.
+#O Monday 1979-11-19 00:00 ... Sunday 1979-11-25 23:59:
+#O 1979-11-23 10:00 foo 1 -- some comment
+#O 1979-11-23 21:25 foo 0:17 -- some comment
+#O 1979-11-23 21:45 foo 0:10 -- another comment
+#O 1979-11-23 21:55 foo 0:01 -- third comment
+#O Sum of above timings:
+#O   1:28 foo
+#O  =====
+#O  +1:28
