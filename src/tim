@@ -919,12 +919,13 @@ class Notify(object):
              comment: comment started with, or None
 
       Notify.STARTED_AT:
-        arg: (name, started_time)
+        arg: (name, started_time, comment)
              name: the name of the project that was successfully started.
              started_time: a timestamp of the time (seconds-since-1970)
                when the timer was started. This is called by the
                'tim started' command, where a timer "was started" in the past
                after the fact.
+             comment: comment started with, or None
 
       Notify.STOPPED,
         arg: a State instance reflecting the state that has just been stopped
@@ -3144,7 +3145,7 @@ class Tim(Notify):
           and (state.timing.name == name_to_start)):
         # success, the daemon has written its PID to the state file.
         if explicit_start_time:
-          return (Notify.STARTED_AT, (name_to_start, original_start_time))
+          return (Notify.STARTED_AT, (name_to_start, original_start_time, comment))
         else:
           return (Notify.STARTED, (name_to_start, comment))
         # returning will release the lock.
@@ -3615,10 +3616,12 @@ def systray_namespace(*args):
           comment = ' -- ' + comment
         self.msg('started ', name, comment or '')
       elif key == Notify.STARTED_AT:
-        name, started_time = arg
+        name, started_time, comment = arg
         name = str(name)
+        if comment:
+          comment = ' -- ' + comment
         self.msg('started ', name, ' at ',
-                 time2str_short_if_today(started_time))
+                 time2str_short_if_today(started_time), comment or '')
       elif key == Notify.FIX_NEEDED:
         yearnr = arg
         self.warn('remember to call \'tim fix ', yearnr, '\' at some point.')
@@ -3985,10 +3988,12 @@ class TimCmdline:
         comment = ' -- ' + comment
       _msg('started ', name, comment or '')
     elif key == Notify.STARTED_AT:
-      name, started_time = arg
+      name, started_time, comment = arg
       name = str(name)
+      if comment:
+        comment = ' -- ' + comment
       _msg('started ', name, ' at ',
-           time2str_short_if_today(started_time))
+           time2str_short_if_today(started_time), comment or '')
     elif key == Notify.FIX_NEEDED:
       yearnr = arg
       _warn('remember to call \'tim fix ', yearnr, '\' at some point.')

@@ -32,7 +32,7 @@ tim stop
 
 WARP TO 2013-05-10 12
 tim started x 5 -- third comment
-#O started x at 5:00
+#O started x at 5:00 -- third comment
 tim stopped 6
 #O stopped x -- third comment
 #O started: 5:00
@@ -85,7 +85,7 @@ tim log year
 WARP TO 2013-05-11 12
 
 tim started x 9 -- first part
-#O started x at 9:00
+#O started x at 9:00 -- first part
 tim stopped 10 ++ last part
 #O stopped x -- first part; last part
 #O started: 9:00
@@ -111,7 +111,7 @@ tim stop ++ last part
 WARP TO 2013-05-11 15
 
 tim started x 12 -- temp part
-#O started x at 12:00
+#O started x at 12:00 -- temp part
 tim stopped 13 -- replacing part
 #O stopped x -- replacing part
 #O started: 12:00
@@ -119,7 +119,7 @@ tim stopped 13 -- replacing part
 #O   ended: 13:00
 
 tim started x 13 -- temp part
-#O started x at 13:00
+#O started x at 13:00 -- temp part
 tim stop -- replacing part
 #O stopped x -- replacing part
 #O started: 13:00
