@@ -4253,13 +4253,6 @@ class TimCmdline:
       show_entries('\n',
                    [], query_result.totals, dec)
 
-
-    
-    if rounder:
-      diff = diff_totals(rounder.surplus, surplus1)
-      if diff:
-        _debug("DIFF of SURPLUS:\n", '\n'.join(diff))
-
     if show_surplus and rounder:
       _msg('Rounding surplus:\n',
            rounder.surplus.to_string(flat=flat, omit_zero=True))
