@@ -155,8 +155,7 @@ to the current moment in time. The word 'adjust' may be omitted.
       tim =1      # make as if I called 'start' one hour ago
 
   -- <comment>
-    Replace any current comment with <comment>.
-
+    Restart with a different comment.
   ++ <comment>
     Add to the current comment.
 
@@ -3049,9 +3048,7 @@ class Tim(Notify):
         state = self.verify_and_get_state()
         t = state.timing
         if t.started:
-          if t.name == name_to_start:
-            if t.add_comment(comment) != comment:
-              state.save()
+          if t.name == name_to_start and t.get_comment() == comment:
             notify_args = (Notify.ALREADY_RUNNING, name_to_start)
             break
           else:
