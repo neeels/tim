@@ -15,7 +15,7 @@ tim =1
 #O x=1 -- first comment
 #O Running since 2013-05-10 00:47
 tim stop
-#O stopped x
+#O stopped x -- first comment
 #O started: 0:47
 #O ran for: 1
 
@@ -26,7 +26,7 @@ tim =1
 #O x=1 -- second comment
 #O Running since 2013-05-10 02:00
 tim stop
-#O stopped x
+#O stopped x -- second comment
 #O started: 2:00
 #O ran for: 1
 
@@ -34,7 +34,7 @@ WARP TO 2013-05-10 12
 tim started x 5 -- third comment
 #O started x at 5:00
 tim stopped 6
-#O stopped x
+#O stopped x -- third comment
 #O started: 5:00
 #O ran for: 1
 #O   ended: 6:00
@@ -42,7 +42,7 @@ tim stopped 6
 tim started x 7
 #O started x at 7:00
 tim stopped 8 -- fourth comment
-#O stopped x
+#O stopped x -- fourth comment
 #O started: 7:00
 #O ran for: 1
 #O   ended: 8:00
@@ -50,7 +50,7 @@ tim stopped 8 -- fourth comment
 tim started x 9
 #O started x at 9:00
 tim stop -- sixth comment
-#O stopped x
+#O stopped x -- sixth comment
 #O started: 9:00
 #O ran for: 3
 
@@ -87,7 +87,7 @@ WARP TO 2013-05-11 12
 tim started x 9 -- first part
 #O started x at 9:00
 tim stopped 10 ++ last part
-#O stopped x
+#O stopped x -- first part; last part
 #O started: 9:00
 #O ran for: 1
 #O   ended: 10:00
@@ -104,7 +104,7 @@ tim -- first part
 #O x=2 -- first part
 #O Running since 2013-05-11 10:00
 tim stop ++ last part
-#O stopped x
+#O stopped x -- first part; last part
 #O started: 10:00
 #O ran for: 2
 
@@ -113,7 +113,7 @@ WARP TO 2013-05-11 15
 tim started x 12 -- temp part
 #O started x at 12:00
 tim stopped 13 -- replacing part
-#O stopped x
+#O stopped x -- replacing part
 #O started: 12:00
 #O ran for: 1
 #O   ended: 13:00
@@ -121,7 +121,7 @@ tim stopped 13 -- replacing part
 tim started x 13 -- temp part
 #O started x at 13:00
 tim stop -- replacing part
-#O stopped x
+#O stopped x -- replacing part
 #O started: 13:00
 #O ran for: 2
 

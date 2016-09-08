@@ -3598,8 +3598,11 @@ def systray_namespace(*args):
       elif key == Notify.STOPPED:
         state = arg
         t = state.timing
+        c = t.get_comment() or ''
+        if c:
+          c = ' -- ' + c
         self.msg('stopped ', t.name,
-             ' (', minutes2str(t.minutes), ')')
+             ' (', minutes2str(t.minutes), ')', c)
       elif key == Notify.STARTED:
         name = str(arg)
         self.msg('started ', name)
@@ -3957,7 +3960,10 @@ class TimCmdline:
         stopped_msg = msgs2str('\n  ended: ', time2str_short_if_today(stopped))
       else:
         stopped_msg = ''
-      _msg('stopped ', t.name,
+      c = t.get_comment() or ''
+      if c:
+        c = ' -- ' + c
+      _msg('stopped ', t.name, c,
            '\nstarted: ', time2str_short_if_today(t.started),
            '\nran for: ', minutes2str(t.minutes),
            stopped_msg,)
