@@ -10,7 +10,7 @@ tim start -- first comment
 #E ...
 
 tim start x -- first comment
-#O started x
+#O started x -- first comment
 tim =1
 #O x=1 -- first comment
 #O Running since 2013-05-10 00:47
@@ -21,7 +21,7 @@ tim stop
 
 WARP TO 2013-05-10 3
 tim x -- second comment
-#O started x
+#O started x -- second comment
 tim =1
 #O x=1 -- second comment
 #O Running since 2013-05-10 02:00
@@ -93,7 +93,7 @@ tim stopped 10 ++ last part
 #O   ended: 10:00
 
 tim start x -- temp first part
-#O started x
+#O started x -- temp first part
 tim =2 ++ temp last part
 #O x=2 -- temp first part; temp last part
 #O Running since 2013-05-11 10:00

@@ -913,8 +913,10 @@ class Notify(object):
 
       Notify.STARTED,
       Notify.ALREADY_RUNNING:
-        arg: the name of the project that was successfully started / stopped
-              / was not started since the same name is already running.
+        arg: (name, comment)
+             name: the name of the project that was successfully started /
+                   stopped / is already running.
+             comment: comment started with, or None
 
       Notify.STARTED_AT:
         arg: (name, started_time)
@@ -3049,7 +3051,7 @@ class Tim(Notify):
         t = state.timing
         if t.started:
           if t.name == name_to_start and t.get_comment() == comment:
-            notify_args = (Notify.ALREADY_RUNNING, name_to_start)
+            notify_args = (Notify.ALREADY_RUNNING, (name_to_start, comment))
             break
           else:
             self.stop(stop_time=start_time)
@@ -3144,7 +3146,7 @@ class Tim(Notify):
         if explicit_start_time:
           return (Notify.STARTED_AT, (name_to_start, original_start_time))
         else:
-          return (Notify.STARTED, name_to_start)
+          return (Notify.STARTED, (name_to_start, comment))
         # returning will release the lock.
 
       if tries < 1:
@@ -3593,8 +3595,11 @@ def systray_namespace(*args):
     def notify(self, key, arg):
       self.update_all()
       if key == Notify.ALREADY_RUNNING:
-        name = str(arg)
-        self.warn('Already running: ', name)
+        name, comment = arg
+        name = str(name)
+        if comment:
+          comment = ' -- ' + comment
+        self.warn('Already running: ', name, comment or '')
       elif key == Notify.STOPPED:
         state = arg
         t = state.timing
@@ -3604,8 +3609,11 @@ def systray_namespace(*args):
         self.msg('stopped ', t.name,
              ' (', minutes2str(t.minutes), ')', c)
       elif key == Notify.STARTED:
-        name = str(arg)
-        self.msg('started ', name)
+        name, comment = arg
+        name = str(name)
+        if comment:
+          comment = ' -- ' + comment
+        self.msg('started ', name, comment or '')
       elif key == Notify.STARTED_AT:
         name, started_time = arg
         name = str(name)
@@ -3950,8 +3958,11 @@ class TimCmdline:
 
   def notify(self, key, arg):
     if key == Notify.ALREADY_RUNNING:
-      name = str(arg)
-      _warn('Already running: ', name)
+      name, comment = arg
+      name = str(name)
+      if comment:
+        comment = ' -- ' + comment
+      _warn('Already running: ', name, comment or '')
     elif key == Notify.STOPPED:
       state = arg
       t = state.timing
@@ -3968,8 +3979,11 @@ class TimCmdline:
            '\nran for: ', minutes2str(t.minutes),
            stopped_msg,)
     elif key == Notify.STARTED:
-      name = str(arg)
-      _msg('started ', name)
+      name, comment = arg
+      name = str(name)
+      if comment:
+        comment = ' -- ' + comment
+      _msg('started ', name, comment or '')
     elif key == Notify.STARTED_AT:
       name, started_time = arg
       name = str(name)
