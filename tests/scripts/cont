@@ -41,6 +41,21 @@ tim stop
 #O started: 21:55
 #O ran for: 0:01
 
+WARP TO 1979-11-23 23:05
+tim bar
+#O started bar
+tim stop
+#O stopped bar
+#O started: 23:05
+#O ran for: 0:01
+WARP TO 1979-11-23 23:42
+tim cont foo
+#O started foo -- third comment
+tim stop
+#O stopped foo -- third comment
+#O started: 23:42
+#O ran for: 0:01
+
 tim log
 #O 1 weeks, ending now, showing entire weeks.
 #O Monday 1979-11-19 00:00 ... Sunday 1979-11-25 23:59:
@@ -48,7 +63,10 @@ tim log
 #O 1979-11-23 21:25 foo 0:17 -- some comment
 #O 1979-11-23 21:45 foo 0:10 -- another comment
 #O 1979-11-23 21:55 foo 0:01 -- third comment
+#O 1979-11-23 23:05 bar 0:01
+#O 1979-11-23 23:42 foo 0:01 -- third comment
 #O Sum of above timings:
-#O   1:28 foo
+#O   0:01 bar
+#O   1:29 foo
 #O  =====
-#O  +1:28
+#O  +1:30

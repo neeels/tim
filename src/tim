@@ -127,11 +127,22 @@ To create timings further in the past than a day ago, use 'tim forge'.
 
 --- tim cont ---
 Say I stopped for lunch break, and now want to continue on the same task.
-Do a 'tim start' on the last item recorded in the logs. Same comment (unless
-you supply a new one).
+Same as doing a 'tim start' on the last item recorded in the logs with the same
+comment (unless you supply a new one).
 
 When a timer is already running, it is stopped and started again (with a new
 comment if you supply one).
+
+If you supply a task name, tim looks up the last comment for that task and
+restarts using that comment.
+
+  tim first_task -- my complex comment
+  tim some_other_task
+  tim stop
+  <lunch break>
+  tim cont first_task
+
+This continues first_task with comment "my complex comment".
 
 --- tim adjust ---
 When a timer is currently running, adjust the recorded time. This always
@@ -1716,7 +1727,7 @@ class Timelog(Notify):
         break
     return found
 
-  def get_last_entry(self, before=None):
+  def get_last_entry(self, before=None, for_name=None):
     yearnrs = self.get_available_years()
     if before:
       before_year = time2year(before)
@@ -1727,7 +1738,9 @@ class Timelog(Notify):
       year = self.get_timings_for_year(last_year_nr)
       for t in reversed(year.timings):
         if (t.started
-            and ((not before) or t.started < before)):
+            and ((not before) or t.started < before)
+            and ((not for_name) or for_name == t.name)
+            ):
           found = t
           break
       if found:
@@ -3093,7 +3106,7 @@ class Tim(Notify):
   def cont(self, new_name=None, comment=None, add_comment=False):
     if not (new_name and comment):
       state = self.verify_and_get_state()
-      t = self.get_last_entry(state)
+      t = self.get_last_entry(state, new_name)
       if not t:
         _raise('There is no past entry in the logs')
       if not new_name:
@@ -3381,16 +3394,17 @@ class Tim(Notify):
       names.add(name)
     return names
 
-  def get_last_entry(self, state=None):
+  def get_last_entry(self, state=None, for_name=None):
     if not state:
       state = self.get_state()
     found = None
 
     # take the running entry, if none look up in the logs
-    if state.timing.started:
+    if state.timing.started and (
+       (not for_name) or (for_name == state.timing.name)):
       return state.timing
 
-    return self.timelog.get_last_entry(now())
+    return self.timelog.get_last_entry(now(), for_name)
 
 
 
