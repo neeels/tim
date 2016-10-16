@@ -35,7 +35,7 @@ tim log year 2013
 #O 2013-01-02 12:00 a.b 3
 #O 2013-01-03 12:00 a.c.d 3
 #O Sum of above timings:
-#O  -4 a
+#O  -4 a (+6 -10)
 #O     -10 ^
 #O       3 b
 #O       3 c
@@ -45,7 +45,7 @@ tim log year 2013
 
 tim totals
 #O Totals:
-#O  -4 a
+#O  -4 a (+6 -10)
 #O     -10 ^
 #O       3 b
 #O       3 c
@@ -103,10 +103,10 @@ tim fix
 #O All correct.
 tim totals
 #O Totals:
-#O  -1 a
+#O  -1 a (+2 -3)
 #O     -3 ^
 #O      1 b
-#O      1 c
+#O      1 c (+2 -1)
 #O        -1 ^
 #O         2 d
 #O   0 e
@@ -122,10 +122,10 @@ tim log year 2013
 #O 2013-02-01 14:00 a.b -2 -- tickoff
 #O 2013-02-01 15:00 a -3 -- tickoff
 #O Sum of above timings:
-#O  -1 a
+#O  -1 a (+2 -3)
 #O     -3 ^
 #O      1 b
-#O      1 c
+#O      1 c (+2 -1)
 #O        -1 ^
 #O         2 d
 #O  ==
@@ -138,7 +138,7 @@ tim totals
 #O Totals:
 #O   2 a
 #O     1 b
-#O     1 c
+#O     1 c (+2 -1)
 #O       -1 ^
 #O        2 d
 #O   0 e
@@ -155,7 +155,7 @@ tim log year 2013
 #O Sum of above timings:
 #O   2 a
 #O     1 b
-#O     1 c
+#O     1 c (+2 -1)
 #O       -1 ^
 #O        2 d
 #O  ==
@@ -168,7 +168,7 @@ tim totals
 #O Totals:
 #O   4 a
 #O     3 b
-#O     1 c
+#O     1 c (+2 -1)
 #O       -1 ^
 #O        2 d
 #O   0 e
@@ -184,7 +184,7 @@ tim log year 2013
 #O Sum of above timings:
 #O   4 a
 #O     3 b
-#O     1 c
+#O     1 c (+2 -1)
 #O       -1 ^
 #O        2 d
 #O  ==

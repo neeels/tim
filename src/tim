@@ -1412,6 +1412,8 @@ class Totals:
       OWN = '^own'
       OWNSTR = '^ownstr'
       SUMSTR = '^sumstr'
+      NEG_SUM_STR = '^neg_sum'
+      POS_SUM_STR = '^pos_sum'
       SUM_SAME_AS_OWN = '^same'
       TIME_LEN = '^time_len'
 
@@ -1434,6 +1436,12 @@ class Totals:
       def trickle_sums(a_dict, full_name='', last_name=None):
         own_minutes = a_dict.get(OWN) or 0
         minutes_sum = own_minutes
+        neg_sum = 0
+        pos_sum = 0
+        if own_minutes < 0:
+          neg_sum += own_minutes
+        else:
+          pos_sum += own_minutes
         for child_name, child_dict in a_dict.iteritems():
           if child_name[0] == '^':
             continue
@@ -1445,8 +1453,14 @@ class Totals:
                                  full_name=child_full_name,
                                  last_name=child_name)
           minutes_sum += sub_sum
+          if sub_sum < 0:
+            neg_sum += sub_sum
+          else:
+            pos_sum += sub_sum
         a_dict[SUMSTR] = minutes2str(minutes_sum, decimal=decimal)
         a_dict[SUM_SAME_AS_OWN] = (minutes_sum == own_minutes)
+        a_dict[NEG_SUM_STR] = minutes2str(neg_sum) if neg_sum else None
+        a_dict[POS_SUM_STR] = minutes2str(pos_sum) if pos_sum else None
         return minutes_sum
       #end of trickle_sums()
 
@@ -1504,9 +1518,16 @@ class Totals:
 
           child_sum = child_dict.get(SUMSTR) or '0'
 
+          p = child_dict.get(POS_SUM_STR)
+          n = child_dict.get(NEG_SUM_STR)
+          if n and p:
+            negpos_str = ' (+%s %s)' % (p, n)
+          else:
+            negpos_str = ''
+
           lines.append(msgs2str(
               ' ' * indent,
-              len_fmt % child_sum, ' ', child_name))
+              len_fmt % child_sum, ' ', child_name, negpos_str))
 
           lines.extend(compose_print(child_dict,
                                      child_full_name,
