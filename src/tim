@@ -1036,7 +1036,7 @@ class Timing:
       return '%s=%s'%(self.name.split('.')[-1], minutes2str(self.minutes))
     return ''
 
-  def to_string(self, rounder=None, decimal=False):
+  def to_string(self, rounder=None, decimal=False, show_end_time=False):
     if self.started:
       started_str = self.started_str()
     else:
@@ -1047,6 +1047,9 @@ class Timing:
     elts = [started_str,
             self.name or 'unnamed',
             minutes2str(minutes or 0, decimal=decimal)]
+    if show_end_time:
+      ended = self.started + self.minutes * 60
+      elts.append('->' + time2str(ended, fmt='%H:%M'))
     if self._comment:
       elts.append(COMMENT_SEPARATOR)
       elts.append(self._comment)
@@ -4286,8 +4289,9 @@ class TimCmdline:
   def cmd_log(self, *args):
     i = 0
     show_surplus = '-s' in args
+    show_end_times = '-e' in args
     flat = '-f' in args
-    args = [arg for arg in args if arg not in ('-s', '-f')]
+    args = [arg for arg in args if arg not in ('-s', '-f', '-e')]
 
     query_result = self.tim.timelog.run_query_phrase(args)
 
@@ -4304,11 +4308,12 @@ class TimCmdline:
     if rounder:
       rounder.clear_surplus()
 
-    def show_entries(desc, entries, totals, decimal):
+    def show_entries(desc, entries, totals, decimal, show_end):
       if desc:
         _msg(desc)
       for entry in entries:
-        _msg(entry.to_string(rounder=rounder, decimal=decimal))
+        _msg(entry.to_string(rounder=rounder, decimal=decimal,
+                             show_end_time=show_end))
       _msg('Sum of above timings:\n',
           totals.to_string(flat=flat, rounder=rounder, decimal=decimal))
 
@@ -4318,7 +4323,7 @@ class TimCmdline:
       show_entries(query_result.description_str(),
                    query_result.timings,
                    query_result.totals,
-                   dec)
+                   dec, show_end_times)
 
     else:
       _msg(query_result.description_str())
@@ -4339,16 +4344,18 @@ class TimCmdline:
 
       for entry in query_result.timings:
         if entry.started > unit_end:
-          show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals, dec)
+          show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals, dec,
+                       show_end_times)
           unit_entries = []
           unit_totals = Totals()
           unit_end = date_end_of(u, entry.started)
         unit_entries.append(entry)
         unit_totals.add_timing(entry)
-      show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals, dec)
+      show_entries('\n' + unit_descr(unit_end), unit_entries, unit_totals, dec,
+                   show_end_times)
 
       show_entries('\n',
-                   [], query_result.totals, dec)
+                   [], query_result.totals, dec, show_end_times)
 
     if show_surplus and rounder:
       _msg('Rounding surplus:\n',
