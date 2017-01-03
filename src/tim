@@ -1752,7 +1752,7 @@ class Timelog(Notify):
     return found
 
   def get_last_entry(self, before=None, for_name=None):
-    yearnrs = self.get_available_years()
+    yearnrs = reversed(self.get_available_years())
     if before:
       before_year = time2year(before)
       yearnrs = [y for y in yearnrs if y <= before_year]
