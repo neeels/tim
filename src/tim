@@ -1793,7 +1793,7 @@ class Timelog(Notify):
 
     from_dot = from_name + '.'
 
-    available_years = sorted(self.get_available_years())
+    available_years = self.get_available_years()
     for yearnr in available_years:
       tf = self.get_timings_for_year(yearnr)
       tf.rename(from_name, to_name)
@@ -2047,8 +2047,9 @@ class Timelog(Notify):
   def get_available_years(self):
     'returns a list of integers with year numbers for which log files exist.'
     files = os.listdir(self.timelog_dir)
-    return [int(name) for name in files
-            if name.isdigit() and os.path.isfile(j(self.timelog_dir, name))]
+    return sorted(
+            [int(name) for name in files
+             if name.isdigit() and os.path.isfile(j(self.timelog_dir, name))])
 
   def fix(self, start_year=None, clear_initial_totals=False,
           fix_overlaps=None):
