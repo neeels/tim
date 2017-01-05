@@ -70,3 +70,32 @@ tim log
 #O   1:29 foo
 #O  =====
 #O  +1:30
+
+# verify that the most recent year is looked up first
+WARP TO 1980-02-01 12:00
+
+tim started foo 10 -- fourth comment
+#O started foo at 10:00 -- fourth comment
+tim stopped 11
+#O stopped foo -- fourth comment
+#O started: 10:00
+#O ran for: 1
+#O   ended: 11:00
+
+tim cont foo
+#O started foo -- fourth comment
+
+tim stop
+#O stopped foo -- fourth comment
+#O started: 12:00
+#O ran for: 0:01
+
+tim log
+#O 1 weeks, ending now, showing entire weeks.
+#O Monday 1980-01-28 00:00 ... Sunday 1980-02-03 23:59:
+#O 1980-02-01 10:00 foo 1 -- fourth comment
+#O 1980-02-01 12:00 foo 0:01 -- fourth comment
+#O Sum of above timings:
+#O   1:01 foo
+#O  =====
+#O  +1:01
