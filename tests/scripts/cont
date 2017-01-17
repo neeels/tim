@@ -99,3 +99,77 @@ tim log
 #O   1:01 foo
 #O  =====
 #O  +1:01
+
+WARP TO 2007-08-03 11:00
+
+tim started foo 4 -- fifth comment
+#O started foo at 4:00 -- fifth comment
+
+tim started bar 5 -- sixth comment
+#O stopped foo -- fifth comment
+#O started: 4:00
+#O ran for: 1
+#O   ended: 5:00
+#O started bar at 5:00 -- sixth comment
+
+tim cont foo -5
+#O stopped bar -- sixth comment
+#O started: 5:00
+#O ran for: 1
+#O   ended: 6:00
+#O started foo at 6:00 -- fifth comment
+
+tim stopped -4
+#O stopped foo -- fifth comment
+#O started: 6:00
+#O ran for: 1
+#O   ended: 7:00
+
+tim cont -2:59
+#O started foo at 8:01 -- fifth comment
+
+tim stopped -2:30
+#O stopped foo -- fifth comment
+#O started: 8:01
+#O ran for: 0:29
+#O   ended: 8:30
+
+tim cont bar @9
+#O started bar at 9:00 -- sixth comment
+
+tim cont foo @10
+#O stopped bar -- sixth comment
+#O started: 9:00
+#O ran for: 1
+#O   ended: 10:00
+#O started foo at 10:00 -- fifth comment
+
+tim stopped 10:30
+#O stopped foo -- fifth comment
+#O started: 10:00
+#O ran for: 0:30
+#O   ended: 10:30
+
+tim cont @10:45
+#O started foo at 10:45 -- fifth comment
+
+tim stop
+#O stopped foo -- fifth comment
+#O started: 10:45
+#O ran for: 0:15
+
+tim log d
+#O 1 days, ending now, showing entire days.
+#O Friday 2007-08-03 00:00 ... Friday 2007-08-03 23:59:
+#O 2007-08-03 04:00 foo 1 -- fifth comment
+#O 2007-08-03 05:00 bar 1 -- sixth comment
+#O 2007-08-03 06:00 foo 1 -- fifth comment
+#O 2007-08-03 08:01 foo 0:29 -- fifth comment
+#O 2007-08-03 09:00 bar 1 -- sixth comment
+#O 2007-08-03 10:00 foo 0:30 -- fifth comment
+#O 2007-08-03 10:45 foo 0:15 -- fifth comment
+#O Sum of above timings:
+#O   2:   bar
+#O   3:14 foo
+#O  =====
+#O  +5:14
