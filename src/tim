@@ -43,7 +43,7 @@ Command line usage:
   tim [status]
   tim new <project-name> [<project-name> [...]]
   tim [start] <project-name> [-- <comment>]
-  tim started <project-name> <time-of-day> [-- <comment>]
+  tim started <project-name> [<time-of-day>|-<hours>] [-- <comment>]
   tim cont [<project-name>] [@<time-of-day>|-<hours] [-- <comment>]
   tim [adjust] [@<time-of-day>|+<hours>|-<hours>|=<hours>] [--|++ <comment>]
   tim stop [--|++ <comment>]
@@ -4203,10 +4203,15 @@ class TimCmdline:
   def cmd_started(self, *args):
     args, comment, add_comment = self.strip_comment(args)
     if len(args) < 2:
-      _raise("'started' takes at least a name and a time-of-day argument.\n",
+      _raise("'started' takes at least a name and a time argument.\n",
              name_syntax_docstr)
     name = self.tim.find_full_name(args[0], allow_none=False)
-    start_time = timeofdaystr2time(args[1])
+    time_arg = args[1]
+    if time_arg[0] == '-':
+      minutes_ago = str2minutes(time_arg)
+      start_time = now() - (60 * abs(minutes_ago))
+    else:
+      start_time = timeofdaystr2time(time_arg)
     self.tim.start(name, comment, start_time=start_time)
 
 

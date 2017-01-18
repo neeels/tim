@@ -28,3 +28,29 @@ tim log d
 #O   1 foo
 #O  ==
 #O  +2
+
+tim started foo 13
+#O started foo at 13:00
+tim started bar -8
+#O stopped foo
+#O started: 13:00
+#O ran for: 0:55
+#O   ended: 13:55
+#O started bar at 13:55
+tim stopped -4
+#O stopped bar
+#O started: 13:55
+#O ran for: 4
+#O   ended: 17:55
+tim log d
+#O 1 days, ending now, showing entire days.
+#O Friday 1979-11-23 00:00 ... Friday 1979-11-23 23:59:
+#O 1979-11-23 10:00 foo 1
+#O 1979-11-23 11:00 bar 1
+#O 1979-11-23 13:00 foo 0:55
+#O 1979-11-23 13:55 bar 4
+#O Sum of above timings:
+#O   5:   bar
+#O   1:55 foo
+#O  =====
+#O  +6:55
