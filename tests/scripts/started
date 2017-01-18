@@ -29,7 +29,7 @@ tim log d
 #O  ==
 #O  +2
 
-tim started foo 13
+tim started foo @13
 #O started foo at 13:00
 tim started bar -8
 #O stopped foo

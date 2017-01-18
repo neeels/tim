@@ -4211,6 +4211,8 @@ class TimCmdline:
       minutes_ago = str2minutes(time_arg)
       start_time = now() - (60 * abs(minutes_ago))
     else:
+      if time_arg.startswith('@'):
+        time_arg = time_arg[1:]
       start_time = timeofdaystr2time(time_arg)
     self.tim.start(name, comment, start_time=start_time)
 
@@ -4275,6 +4277,8 @@ class TimCmdline:
       minutes_ago = str2minutes(time_arg)
       stop_time = now() - (60 * abs(minutes_ago))
     else:
+      if time_arg.startswith('@'):
+        time_arg = time_arg[1:]
       stop_time = timeofdaystr2time(time_arg)
     stopped_state = self.tim.stop(comment, add_comment, stop_time=stop_time, expect_name=expect_name)
     if not stopped_state:
