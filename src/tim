@@ -4243,6 +4243,8 @@ class TimCmdline:
         start_time = now() - (60 * abs(minutes_ago))
       elif time_arg[0] == '@':
         start_time = timeofdaystr2time(time_arg[1:])
+      else:
+        start_time = timeofdaystr2time(time_arg)
     else:
       start_time = None
 
