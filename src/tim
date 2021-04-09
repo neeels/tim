@@ -499,7 +499,7 @@ between each pair of start ... stop commands.
   tim new yoyodyne.abc     # announce project abc in group yoyodyne
   tim yoyodyne.abc         # start timing for project abc in the group yoyodyne
   tim +1                   # fake starting-time so that I've worked 1 hour now
-  tim stop "fix a bug"     # stop timing, record in the log with a message
+  tim stop -- fix a bug    # stop timing, record in the log with a message
   tim abc                  # start yoyodyne.abc; tim finds 'abc' in 'yoyodyne'.
   tim stop
   tim new yoyodyne.xyz.bar # announce project bar in new group yoyodyne.xyz
@@ -639,8 +639,6 @@ def str2minutes(str_hours, raise_on_err=True):
     if raise_on_err:
       raise FormatError("Not a time string: '", str_hours, "'")
     return None
-
-    self.adjust_start( timeofday2time(new_start_time_of_day_in_minutes) )
 
 def timeofday2time(time_of_day_in_minutes):
   '''Calculate a full unix timestamp from a given time-of-day.  The time-of-day
@@ -2797,7 +2795,7 @@ class Timelog(Notify):
       if end is not None:
         if include_end:
           end = date_end_of(unit, end)
-          if end < query.end:
+          if query.end is not None and end < query.end:
             end = query.end
         else:
           end = date_beginning_of(unit, end)
