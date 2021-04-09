@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # coding: utf8
 #
 # Tim
@@ -550,13 +550,13 @@ def _raise(*msgs):
   raise Error(*msgs)
 
 def _warn(*msgs):
-  print '***', msgs2str(*msgs)
+  print('*** %s' % msgs2str(*msgs))
 
 def _msg(*msgs):
-  print msgs2str(*msgs)
+  print(msgs2str(*msgs))
 
 def _msg_and_flush(*msgs):
-  print msgs2str(*msgs)
+  print(msgs2str(*msgs))
   sys.stdout.flush()
 
 def _errmsg(*msgs):
@@ -568,7 +568,7 @@ def _errmsg(*msgs):
 
 def _debug(*msgs):
   lines = [('####### ' + line) for line in msgs2str(*msgs).split('\n')]
-  print '\n'.join(lines)
+  print('\n'.join(lines))
   sys.stdout.flush()
 
 def handle_error(e):
@@ -635,7 +635,7 @@ def str2minutes(str_hours, raise_on_err=True):
       fm = float(m)
 
     return int(sign * round(fh * 60.0 + fm))
-  except ValueError, e:
+  except ValueError as e:
     if raise_on_err:
       raise FormatError("Not a time string: '", str_hours, "'")
     return None
@@ -1260,7 +1260,7 @@ class Totals:
 
 
 #  def add_all(self, other_totals_instance):
-#    for name, minutes in other_totals_instance.iteritems():
+#    for name, minutes in other_totals_instance.items():
 #      self.add_time(name, minutes)
 
   class TotalsErr(Error):
@@ -1297,8 +1297,8 @@ class Totals:
   def get(self, *args):
     return self.entries.get(*args)
 
-  def iteritems(self):
-    return self.entries.iteritems()
+  def items(self):
+    return self.entries.items()
 
   def __iter__(self, *args):
     return self.entries.__iter__(*args)
@@ -1343,7 +1343,7 @@ class Totals:
 
   def get_serialized_items(self):
     return [ ( '%s=%s\n' % (name, minutes2str(minutes)) )
-            for name, minutes in sorted(self.iteritems())]
+            for name, minutes in sorted(self.items())]
 
   def __repr__(self):
     return ''.join(self.get_serialized_items())
@@ -1377,7 +1377,7 @@ class Totals:
     items = []
     seen = set()
 
-    for name, minutes in self.iteritems():
+    for name, minutes in self.items():
       if omit_zero and minutes == 0:
         continue
       if (not only) or (name in only):
@@ -1449,7 +1449,7 @@ class Totals:
           neg_sum += own_minutes
         else:
           pos_sum += own_minutes
-        for child_name, child_dict in a_dict.iteritems():
+        for child_name, child_dict in a_dict.items():
           if child_name[0] == '^':
             continue
           if full_name:
@@ -1480,7 +1480,7 @@ class Totals:
 
         has_minutes = False
 
-        for child_name, child_dict in a_dict.iteritems():
+        for child_name, child_dict in a_dict.items():
           if child_name[0] == '^':
             continue
           sum_str = child_dict.get(SUMSTR) or ''
@@ -1492,7 +1492,7 @@ class Totals:
           own_hours += ':  '
         max_len = len(own_hours)
 
-        for child_name, child_dict in a_dict.iteritems():
+        for child_name, child_dict in a_dict.items():
           if child_name[0] == '^':
             continue
           sum_str = child_dict.get(SUMSTR) or ''
@@ -1514,7 +1514,7 @@ class Totals:
 
         child_indent = indent + max_len + 1
 
-        for child_name, child_dict in sorted(a_dict.iteritems()):
+        for child_name, child_dict in sorted(a_dict.items()):
           if child_name[0] == '^':
             continue
 
@@ -1669,7 +1669,7 @@ class Totals:
 
 def diff_totals(t_is, t_shouldbe):
   diff = []
-  for name, minutes in sorted(t_is.iteritems()):
+  for name, minutes in sorted(t_is.items()):
     shouldbe_minutes = t_shouldbe.get(name)
     if (shouldbe_minutes != minutes) and not (
          (shouldbe_minutes or 0) == (minutes or 0)):
@@ -1679,7 +1679,7 @@ def diff_totals(t_is, t_shouldbe):
         shouldbe_str = ', should be ' + minutes2str(shouldbe_minutes)
       diff.append(msgs2str(" - '", name, "' is ", minutes2str(minutes),
                            shouldbe_str))
-  for name,minutes in sorted(t_shouldbe.iteritems()):
+  for name,minutes in sorted(t_shouldbe.items()):
     if not name in t_is:
       diff.append(msgs2str(" - '", name, "' is missing, should be ",
                            minutes2str(minutes)))
@@ -2125,9 +2125,9 @@ class Timelog(Notify):
 
       if wrong_here:
         count = sum([len(timings_list)
-                     for k,timings_list in wrong_here.iteritems()])
+                     for k,timings_list in wrong_here.items()])
         self.msg('** removing ', count, ' wrong timings from ', yearnr, ':')
-        for k,timings_list in wrong_here.iteritems():
+        for k,timings_list in wrong_here.items():
           for t in timings_list:
             year.remove_timing(t)
             self.msg('    ', repr(t))
@@ -2142,7 +2142,7 @@ class Timelog(Notify):
         year.save()
 
 
-    for yearnr,timings in entries_in_wrong_file.iteritems():
+    for yearnr,timings in entries_in_wrong_file.items():
       self.msg('++ adding ', len(timings), ' timings to ', yearnr)
       year = self.get_timings_for_year(yearnr)
       for t in timings:
@@ -2450,7 +2450,7 @@ class Timelog(Notify):
     @staticmethod
     def unit_phrase_for(unit_id):
       r = [phrase
-           for phrase,unit in Timelog.QueryPhrase.unit_phrases.iteritems()
+           for phrase,unit in Timelog.QueryPhrase.unit_phrases.items()
            if unit_id == unit]
       if len(r) != 1:
         return None
@@ -2628,7 +2628,7 @@ class Timelog(Notify):
         return None
 
     def unit_arg(self):
-      for phrase, phrase_unit in Timelog.QueryPhrase.unit_phrases.iteritems():
+      for phrase, phrase_unit in Timelog.QueryPhrase.unit_phrases.items():
         if phrase.startswith(self.token):
           return phrase_unit
       return None
@@ -2997,9 +2997,6 @@ class TimedDirLock(Notify):
       self.acquired = None
       self.lock_count = 0
       shutil.rmtree(self.lock_path)
-
-  def __del__(self):
-    self.__exit__()
 
 
 class Tim(Notify):
@@ -3636,7 +3633,7 @@ def systray_namespace(*args):
         xpos = time2hourofday(start_time) * w / 24
         barw = min(w, int((float(minutes) / 60) * w / 24))
 
-        print barw
+        print(barw)
         day = float(abs( date_beginning_of(UNIT_DAY, start_time)
                          - beginning_of_last_day
                    )) / (24.*60*60)
@@ -3665,7 +3662,7 @@ def systray_namespace(*args):
 
 
       for timing in result.timings:
-        print str(timing)
+        print(str(timing))
         draw_bar(timing.name, self.color_space.get_color_str(timing.name),
                  timing.started, timing.minutes )
 
@@ -3888,7 +3885,7 @@ def systray_namespace(*args):
       self.clear_warnings()
 
     def run(self):
-      print 'running systray icon.'
+      print('running systray icon.')
 
       self.tray = gtk.status_icon_new_from_file(self.icon_path)
       self.tray.connect("button-press-event", self.on_click)
@@ -4703,7 +4700,7 @@ if __name__ == "__main__":
 
   try:
     TimCmdline(sys.argv[1:])
-  except Error, e:
+  except Error as e:
     handle_error(e)
 
 
