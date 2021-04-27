@@ -1020,7 +1020,14 @@ class Timing:
       and (other.minutes is None or self.minutes == other.minutes)
       and (other._comment is None or self._comment == other._comment))
 
-  def __cmp__(self, other):
+  def cmp(self, other):
+    def cmp(a, b):
+      if a == b:
+        return 0
+      if a < b:
+        return -1
+      if a > b:
+        return 1
     c = cmp(self.started, other.started)
     if c: return c
     c = cmp(self.name, other.name)
@@ -1029,6 +1036,9 @@ class Timing:
     if c: return c
     c = cmp(self._comment, other._comment)
     return c
+
+  def __lt__(self, other):
+    return self.cmp(other) < 0
 
   def clear(self):
     self.set_values()
@@ -2182,7 +2192,7 @@ class Timelog(Notify):
         else:
           prev_until = None
         was_fixed = False
-        if (prev_until > t.started) and (
+        if (prev_until is not None and prev_until > t.started) and (
             fix_overlaps != Timelog.FIX_OVERLAPS_IGNORE):
           t_was = repr(t)
           verbose = True
